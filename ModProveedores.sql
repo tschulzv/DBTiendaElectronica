@@ -1,5 +1,5 @@
-/* SCRIPT MODIFICACIÓN DE TABLA PROVEEDORES 
-Destinado a hacer cumplir la política de la empresa 
+/* SCRIPT MODIFICACIÃ“N DE TABLAS  
+Modificaciones con el objetivo de hacer cumplir la polÃ­tica de la empresa 
 */
 
 USE TiendaElectronica;
@@ -15,7 +15,7 @@ WHERE saldo IS NULL;
 ALTER TABLE Proveedores
 ALTER COLUMN saldo numeric(12) NOT NULL;
 
--- CONSTRAINT PARA VERIFICAR QUE EL SALDO NO SUPERE A LA LINEA DE CRÉDITO
+-- CONSTRAINT PARA VERIFICAR QUE EL SALDO NO SUPERE A LA LINEA DE CRÃ‰DITO
 ALTER TABLE Proveedores
 ADD CONSTRAINT chk_saldo_vs_credito CHECK (saldo <= linea_credito);
 
@@ -31,3 +31,7 @@ WHERE id_proveedor = 5;
 UPDATE Proveedores
 SET saldo = 10000000
 WHERE id_proveedor = 2;
+
+-- Agregar constraint de Stock negativo
+ALTER TABLE Stock
+ADD CONSTRAINT chk_cantidad_stock CHECK (cantidad >= 0);
