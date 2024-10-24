@@ -4,6 +4,18 @@ TRIGGERS
 USE TiendaElectronica;
 GO
 
+CREATE TRIGGER trg_SetSaldoIgualTotal
+ON Compras
+AFTER INSERT
+AS
+BEGIN
+    UPDATE Compras
+    SET saldo_compra = total_compra
+    FROM Compras c
+    INNER JOIN inserted i ON c.id_compra = i.id_compra;
+END;
+GO
+
 -- !!! FALTA TRIGGER COMPRA
 -- AUMENTAR EL SALDO DEL PROVEEDOR
 
