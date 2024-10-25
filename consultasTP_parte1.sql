@@ -2,7 +2,7 @@ use TiendaElectronica;
 
 /*
 Monto del importe total de compras realizadas en un rango de fechas (entre dos fechas), 
-desplegar los atributos: fecha, c骴igo y nombre de dep髎ito, importe total de compras para esa fecha y dep髎ito. (1).
+desplegar los atributos: fecha, c贸digo y nombre de dep贸sito, importe total de compras para esa fecha y dep贸sito. (1).
 */
 
 SELECT 
@@ -19,8 +19,8 @@ ORDER BY
     c.fecha_compra, d.id_deposito;
 
 
-/* Productos comprados a proveedores, el criterio de recuperaci髇 es por rango de proveedores y rango de fechas, 
-desplegar los siguientes atributos: C骴igo y nombre del Proveedor, c骴igo
+/* Productos comprados a proveedores, el criterio de recuperaci贸n es por rango de proveedores y rango de fechas, 
+desplegar los siguientes atributos: C贸digo y nombre del Proveedor, c贸digo
 */
 
 SELECT 
@@ -40,8 +40,8 @@ GROUP BY
 ORDER BY 
     P.id_proveedor, Pr.id_producto;
 
-/* Productos comprados a m醩 de un proveedor por rango de proveedores, desplegar
-los atributos: C骴igo y descripci髇 del Producto, c骴igo y nombre del proveedor. */
+/* Productos comprados a m谩s de un proveedor por rango de proveedores, desplegar
+los atributos: C贸digo y descripci贸n del Producto, c贸digo y nombre del proveedor. */
 
 SELECT 
 	Pr.id_producto as Codigo_Producto,
@@ -60,7 +60,7 @@ INNER JOIN Productos Pr ON DC.id_producto = Pr.id_producto
 WHERE C.id_proveedor BETWEEN 1 AND 3;
 
 /*- Informe de facturas de compra pendientes de pago, desplegar los atributos: Factura,
-fecha, c骴igo y nombre del proveedor, total de la factura y saldo de la factura.*/
+fecha, c贸digo y nombre del proveedor, total de la factura y saldo de la factura.*/
 SELECT c.id_compra AS "Factura", c.fecha_compra AS "Fecha", pr.id_proveedor AS "Codigo", pr.nombre AS "Proveedor",  
 	c.total_compra AS "Total", c.saldo_compra AS "Saldo"
 FROM Compras c
@@ -68,16 +68,43 @@ JOIN Proveedores pr ON c.id_proveedor = pr.id_proveedor
 WHERE c.saldo_compra > 0
 ORDER BY c.fecha_compra, pr.nombre;
 
-/* Ranking de productos (Productos m醩 comprados, por cantidad de productos)*/
-SELECT p.id_producto AS "C骴igo del Producto", p.descripcion AS "Descripci髇 del Producto", SUM(dc.cantidad) AS "Cantidad Comprada"
+/* Ranking de productos (Productos m谩s comprados, por cantidad de productos)*/
+SELECT p.id_producto AS "C贸digo del Producto", p.descripcion AS "Descripci贸n del Producto", SUM(dc.cantidad) AS "Cantidad Comprada"
 FROM Productos p
 JOIN Detalle_Compras dc ON p.id_producto = dc.id_producto
 GROUP BY p.id_producto, p.descripcion
 ORDER BY SUM(dc.cantidad) DESC;
 
-/*Ranking de proveedores (Proveedores a los que m醩 se les compra, por monto de facturaci髇)*/
-SELECT p.id_proveedor AS "C骴igo del Proveedor", p.nombre AS "Nombre del Proveedor", SUM(c.total_compra) AS "Monto Total de Facturaci髇"
+/*Ranking de proveedores (Proveedores a los que m谩s se les compra, por monto de facturaci贸n)*/
+SELECT p.id_proveedor AS "C贸digo del Proveedor", p.nombre AS "Nombre del Proveedor", SUM(c.total_compra) AS "Monto Total de Facturaci贸n"
 FROM Proveedores p
 JOIN Compras c ON p.id_proveedor = c.id_proveedor
 GROUP BY p.id_proveedor, p.nombre
 ORDER BY SUM(c.total_compra) DESC;
+
+/*Productos que no se compraron por rango de fecha, desplegar los atributos: c贸digo y descripci贸n del producto, precio de compra, 
+ultima fecha de compra. (2) (Resolver con procedimiento almacenado)*/
+CREATE PROCEDURE sp_Productos_No_Comprados (
+    @FechaInicio DATE,
+    @FechaFin DATE
+)
+AS
+BEGIN
+    SELECT 
+        p.id_producto AS "C贸digo del Producto",
+        p.descripcion AS "Descripci贸n del Producto",
+        p.ultimo_costo_unitario AS "Precio de Compra",
+        MAX(c.fecha_compra) AS "脷ltima Fecha de Compra"
+    FROM Productos p
+    LEFT JOIN Detalle_Compras dc ON p.id_producto = dc.id_producto
+    LEFT JOIN Compras c ON dc.id_compra = c.id_compra
+    WHERE 
+        NOT EXISTS (
+            SELECT 1 FROM Compras c2
+            JOIN Detalle_Compras dc2 ON c2.id_compra = dc2.id_compra
+            WHERE dc2.id_producto = p.id_producto AND c2.fecha_compra BETWEEN @FechaInicio AND @FechaFin
+        )
+    GROUP BY p.id_producto, p.descripcion, p.ultimo_costo_unitario
+END;
+
+EXEC sp_Productos_No_Comprados @FechaInicio = '2024-03-30', @FechaFin = '2024-12-31';
