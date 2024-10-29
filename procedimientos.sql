@@ -49,3 +49,4 @@ EXEC sp_ManageProveedor
     @id_proveedor = 11;
 
 Select * from Proveedores;
+GO
