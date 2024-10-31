@@ -13,14 +13,26 @@ los 3 eventos
 5. pagos de proveedores 
 los  3 eventos
 
+
+
 */
-USE TiendaElectronica;
-
+select * from Stock;
+--select * from Transferencias_Productos;
 select * from Detalles_Transferencia;
-select * from Transferencias_Productos;
-select * from stock;
-select * from Depositos;
 
+-- probando insert
+INSERT INTO Detalles_Transferencia VALUES (
+4, 1, 1, 2);
+
+-- probando update
+UPDATE Detalles_Transferencia
+SET id_producto = 2
+WHERE id_detalle_transferencia = 4;
+
+DELETE FROM Detalles_Transferencia
+WHERE id_detalle_transferencia = 4;
+
+USE TiendaElectronica;
 GO
 
 -- TRIGGERS PARA DETALLES_TRANSFERENCIA ------------------------------------------
@@ -109,7 +121,7 @@ BEGIN
 	-- recuperar depositos origen y destino de la cabecera
 	SELECT @depo_origen = id_deposito_origen, @depo_destino = id_deposito_destino
 	FROM Transferencias_Productos t
-	INNER JOIN inserted i ON i.id_transferencia = t.id_transferencia;
+	INNER JOIN deleted i ON i.id_transferencia = t.id_transferencia;
 
 	-- recuperar cantidad actual en deposito de origen
 	SELECT @stock_origen = st.cantidad
@@ -147,134 +159,140 @@ END;
 
 GO
 
--- UPDATE
 CREATE TRIGGER tiu_detalles_transferencia
 ON Detalles_Transferencia
 AFTER UPDATE
 AS
 BEGIN 
-	DECLARE @depo_origen INT;
-	DECLARE @depo_destino INT;
-	DECLARE @stock_origen NUMERIC(6);
-	DECLARE @stock_destino NUMERIC(6);
-	DECLARE @cantidad_nueva NUMERIC(6);
-	DECLARE @cantidad_vieja NUMERIC(6);
-	DECLARE @id_producto_nuevo INT;
-	DECLARE @id_producto_viejo INT;
+    DECLARE @depo_origen INT;
+    DECLARE @depo_destino INT;
+    DECLARE @stock_origen NUMERIC(6);
+    DECLARE @stock_destino NUMERIC(6);
+    DECLARE @cantidad_nueva NUMERIC(6);
+    DECLARE @cantidad_vieja NUMERIC(6);
+    DECLARE @id_producto_nuevo INT;
+    DECLARE @id_producto_viejo INT;
 
-	-- inicializar variables produtco y cantidad
-	SET @cantidad_nueva = (SELECT cantidad FROM inserted);
-	SET @cantidad_vieja= (SELECT cantidad FROM deleted);
-	SET @id_producto_nuevo = (SELECT id_producto FROM inserted);
-	SET @id_producto_viejo = (SELECT id_producto FROM deleted);
+    -- obtener los valores de cantidad e id_producto
+    SELECT @cantidad_nueva = i.cantidad, 
+           @cantidad_vieja = d.cantidad,
+           @id_producto_nuevo = i.id_producto,
+           @id_producto_viejo = d.id_producto
+    FROM inserted i
+    INNER JOIN deleted d ON i.id_transferencia = d.id_transferencia;
 
-	-- recuperar depositos origen y destino de la cabecera
-	SELECT @depo_origen = id_deposito_origen, @depo_destino = id_deposito_destino
-	FROM Transferencias_Productos t
-	INNER JOIN inserted i ON i.id_transferencia = t.id_transferencia;
+    -- recuperar depósitos de origen y destino desde Transferencias_Productos
+    SELECT @depo_origen = t.id_deposito_origen, 
+           @depo_destino = t.id_deposito_destino
+    FROM Transferencias_Productos t
+    INNER JOIN inserted i ON i.id_transferencia = t.id_transferencia;
 
-	-- recuperar cantidad actual en deposito de origen
-	SELECT @stock_origen = st.cantidad
-	FROM Stock st
-	WHERE st.id_producto = @id_producto_viejo
-	  AND id_deposito = @depo_origen;
+    -- recuperar la cantidad actual en el depósito de origen
+    SELECT @stock_origen = st.cantidad
+    FROM Stock st
+    WHERE st.id_producto = @id_producto_viejo
+      AND st.id_deposito = @depo_origen;
 
-	-- codigo cuando se modifica la cantidad
-	IF UPDATE(cantidad)
-	BEGIN
-			-- validar la cantidad 
-		IF @cantidad_nueva > @stock_origen
-		BEGIN
-			ROLLBACK TRANSACTION;
-			THROW 50001, 'La cantidad solicitada excede el stock', 1;
-		END;
+    -- codigo para actualizar cantidad
+    IF UPDATE(cantidad)
+    BEGIN
+        -- Verificar que la nueva cantidad no exceda el stock
+        IF @cantidad_nueva > @stock_origen
+        BEGIN
+            ROLLBACK TRANSACTION;
+            THROW 50001, 'La cantidad solicitada excede el stock', 1;
+        END;
 
-		-- actualizar el stock del deposito de origen
-		BEGIN TRY
-			UPDATE Stock
-			SET cantidad = cantidad + @cantidad_vieja - @cantidad_nueva,
-				ultima_actualizacion = CAST(GETDATE() AS DATE) 
-			WHERE id_producto = @id_producto_viejo AND id_deposito = @depo_origen;
-		END TRY
-		BEGIN CATCH
-			ROLLBACK TRANSACTION;
-			THROW 50002, 'No se pudo actualizar el stock', 2;
-		END CATCH;
+        -- actualizar el stock del depósito de origen
+        BEGIN TRY
+            UPDATE Stock
+            SET cantidad = cantidad + @cantidad_vieja - @cantidad_nueva,
+                ultima_actualizacion = GETDATE()
+            WHERE id_producto = @id_producto_viejo AND id_deposito = @depo_origen;
+        END TRY
+        BEGIN CATCH
+            ROLLBACK TRANSACTION;
+            THROW 50002, 'No se pudo actualizar el stock en el depósito de origen', 2;
+        END CATCH;
 
-		-- actualizar el stock del deposito de destino
-		BEGIN TRY
-			UPDATE Stock
-			SET cantidad = cantidad - @cantidad_vieja + @cantidad_nueva,
-				ultima_actualizacion = CAST(GETDATE() AS DATE) 
-			WHERE id_producto = @id_producto_viejo AND id_deposito = @depo_destino;
-		END TRY
-		BEGIN CATCH
-			ROLLBACK TRANSACTION;
-			THROW 50002, 'No se pudo actualizar el stock', 2;
-		END CATCH;
-	END;
+        -- Actualizar el stock del depósito de destino
+        BEGIN TRY
+            UPDATE Stock
+            SET cantidad = cantidad - @cantidad_vieja + @cantidad_nueva,
+                ultima_actualizacion = GETDATE()
+            WHERE id_producto = @id_producto_viejo AND id_deposito = @depo_destino;
+        END TRY
+        BEGIN CATCH
+            ROLLBACK TRANSACTION;
+            THROW 50002, 'No se pudo actualizar el stock en el depósito de destino', 2;
+        END CATCH;
+    END;
 
-	-- codigo cuando se modifica el producto
-	IF UPDATE(id_producto)
-	BEGIN
-		-- actualizar el stock del producto viejo
-		-- actualizar stock del deposito origen
-		BEGIN TRY
-			UPDATE Stock
-			SET cantidad = cantidad + @cantidad_vieja,
-			--- modificar para vovler a LA FECHA ANTERIOR----------------------
-				ultima_actualizacion = CAST(GETDATE() AS DATE) 
-			WHERE id_producto = @id_producto_viejo AND id_deposito = @depo_origen;
-		END TRY
-		BEGIN CATCH
-			ROLLBACK TRANSACTION;
-			THROW 50002, 'No se pudo actualizar el stock', 2;
-		END CATCH;
+    -- codigo para actualizar el producto
+    IF UPDATE(id_producto)
+    BEGIN
+        -- actualizar el stock del producto viejo en el depósito de origen
+        BEGIN TRY
+            UPDATE Stock
+            SET cantidad = cantidad + @cantidad_vieja,
+                ultima_actualizacion = GETDATE()
+            WHERE id_producto = @id_producto_viejo AND id_deposito = @depo_origen;
+        END TRY
+        BEGIN CATCH
+            ROLLBACK TRANSACTION;
+            THROW 50002, 'No se pudo actualizar el stock para el producto viejo en el depósito de origen', 2;
+        END CATCH;
 
-		-- actualizar el stock del deposito de destino
-		BEGIN TRY
-			UPDATE Stock
-			SET cantidad = cantidad - @cantidad_vieja,
-			--- modificar para vovler a LA FECHA ANTERIOR----------------------
-				ultima_actualizacion = CAST(GETDATE() AS DATE) 
-			WHERE id_producto = @id_producto_viejo AND id_deposito = @depo_destino;
-		END TRY
-		BEGIN CATCH
-			ROLLBACK TRANSACTION;
-			THROW 50002, 'No se pudo actualizar el stock', 2;
-		END CATCH;
-	END;
+        -- actualizar el stock del producto viejo en el depósito de destino
+        BEGIN TRY
+            UPDATE Stock
+            SET cantidad = cantidad - @cantidad_vieja,
+                ultima_actualizacion = GETDATE()
+            WHERE id_producto = @id_producto_viejo AND id_deposito = @depo_destino;
+        END TRY
+        BEGIN CATCH
+            ROLLBACK TRANSACTION;
+            THROW 50002, 'No se pudo actualizar el stock para el producto viejo en el depósito de destino', 2;
+        END CATCH;
 
-	-- ACTUALIZAR STOCK DEL NUEVO PRODUCTO
-	-- validar la cantidad 
-	IF @cantidad_nueva > @stock_origen 
-	BEGIN
-		ROLLBACK TRANSACTION;
-		THROW 50001, 'La cantidad solicitada excede el stock', 1;
-	END;
+        -- validar el stock disponible para el nuevo producto en el depósito de origen
+        SELECT @stock_origen = cantidad
+        FROM Stock
+        WHERE id_producto = @id_producto_nuevo AND id_deposito = @depo_origen;
 
-	-- actualizar el stock del deposito de origen
-	BEGIN TRY
-		UPDATE Stock
-		SET cantidad = cantidad - @cantidad_nueva,
-			ultima_actualizacion = CAST(GETDATE() AS DATE) 
-		WHERE id_producto = @id_producto_nuevo AND id_deposito = @depo_origen;
-	END TRY
-	BEGIN CATCH
-		ROLLBACK TRANSACTION;
-		THROW 50002, 'No se pudo actualizar el stock', 2;
-	END CATCH;
+        IF @cantidad_nueva > @stock_origen
+        BEGIN
+            ROLLBACK TRANSACTION;
+            THROW 50001, 'La cantidad solicitada excede el stock para el nuevo producto', 1;
+        END;
 
-	-- actualizar el stock del deposito de destino
-	BEGIN TRY
-		UPDATE Stock
-		SET cantidad = cantidad + @cantidad_nueva,
-			ultima_actualizacion = CAST(GETDATE() AS DATE) 
-		WHERE id_producto = @id_producto_nuevo AND id_deposito = @depo_destino;
-	END TRY
-	BEGIN CATCH
-		ROLLBACK TRANSACTION;
-		THROW 50002, 'No se pudo actualizar el stock', 2;
-	END CATCH;
+        -- actualizar el stock del nuevo producto en el depósito de origen
+        BEGIN TRY
+            UPDATE Stock
+            SET cantidad = cantidad - @cantidad_nueva,
+                ultima_actualizacion = GETDATE()
+            WHERE id_producto = @id_producto_nuevo AND id_deposito = @depo_origen;
+        END TRY
+        BEGIN CATCH
+            ROLLBACK TRANSACTION;
+            THROW 50002, 'No se pudo actualizar el stock para el nuevo producto en el depósito de origen', 2;
+        END CATCH;
 
+        -- actualizar el stock del nuevo producto en el depósito de destino
+        BEGIN TRY
+            UPDATE Stock
+            SET cantidad = cantidad + @cantidad_nueva,
+                ultima_actualizacion = GETDATE()
+            WHERE id_producto = @id_producto_nuevo AND id_deposito = @depo_destino;
+        END TRY
+        BEGIN CATCH
+            ROLLBACK TRANSACTION;
+            THROW 50002, 'No se pudo actualizar el stock para el nuevo producto en el depósito de destino', 2;
+        END CATCH;
+    END;
 END;
+
+
+
+
+
