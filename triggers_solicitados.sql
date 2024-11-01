@@ -16,9 +16,9 @@ los  3 eventos
 
 
 */
-select * from Stock;
---select * from Transferencias_Productos;
-select * from Detalles_Transferencia;
+
+USE TiendaElectronica;
+
 
 -- probando insert
 INSERT INTO Detalles_Transferencia VALUES (
@@ -146,7 +146,6 @@ BEGIN
 	BEGIN TRY
 		UPDATE Stock
 		SET cantidad = cantidad - @cantidad,
-		-- no se como hacer para volver a la fecha anterior :( -------------------
 			ultima_actualizacion = CAST(GETDATE() AS DATE) 
 		WHERE id_producto = @id_producto AND id_deposito = @depo_destino;
 	END TRY
@@ -292,7 +291,224 @@ BEGIN
     END;
 END;
 
+/** 
+PAGOS A PROVEEDORES
+**/
 
+Select * from Pagos;
+select * from Detalles_Pagos;
+select * from Compras;
+select * from Proveedores;
+-- INSERT 
 
+GO
 
+CREATE TRIGGER tia_detalle_pago
+ON Detalles_Pagos
+AFTER INSERT
+AS
+BEGIN 
+	DECLARE @id_pago INT;
+	DECLARE @id_compra INT;
+	DECLARE @id_proveedor INT;
+	DECLARE @id_detalle_forma_pago INT;
+	DECLARE @importe NUMERIC(12);
 
+	-- inicializar variables con valores del detalle
+	SET @importe= (SELECT importe_pagado FROM inserted);
+	SET @id_pago = (SELECT id_pago FROM inserted);
+	SET @id_compra = (SELECT id_compra FROM inserted);
+
+	-- recuperar proveedor e importe actual de la cabecera
+	SELECT @id_proveedor = P.id_proveedor
+	FROM Pagos p
+	INNER JOIN inserted i ON i.id_pago = p.id_pago;
+
+	-- sumar al importe actual el nuevo importe insertado
+	BEGIN TRY 
+		UPDATE Pagos 
+		SET importe_total = importe_total + @importe
+		WHERE id_pago = @id_pago;
+	END TRY
+	BEGIN CATCH 
+		ROLLBACK TRANSACTION;
+		THROW 50003, 'No se pudo actualizar el monto', 1;
+	END CATCH
+
+	-- modificar el saldo en la tabla compra
+	BEGIN TRY 
+		UPDATE Compras
+		SET saldo_compra = saldo_compra - @importe
+		WHERE id_compra = @id_compra;
+	END TRY
+	BEGIN CATCH 
+		ROLLBACK TRANSACTION;
+		THROW 50004, 'No se pudo actualizar el saldo', 1;
+	END CATCH
+
+	-- modificar el saldo en la tabla proveedores
+	BEGIN TRY
+		UPDATE Proveedores 
+		SET saldo = saldo - @importe
+		WHERE @id_proveedor = @id_proveedor;
+	END TRY
+	BEGIN CATCH
+		ROLLBACK TRANSACTION;
+		THROW 50004, 'No se pudo actualizar el saldo', 1;
+	END CATCH
+
+END;
+
+GO
+
+-- DELETE
+CREATE TRIGGER tda_detalle_pago
+ON Detalles_Pagos
+AFTER DELETE
+AS 
+BEGIN 
+	DECLARE @id_pago INT;
+	DECLARE @id_compra INT;
+	DECLARE @id_proveedor INT;
+	DECLARE @id_detalle_forma_pago INT;
+	DECLARE @importe NUMERIC(12);
+
+	-- inicializar variables con valores del detalle
+	SET @importe= (SELECT importe_pagado FROM deleted);
+	SET @id_pago = (SELECT id_pago FROM deleted);
+	SET @id_compra = (SELECT id_compra FROM deleted);
+
+	-- recuperar proveedor e importe actual de la cabecera
+	SELECT @id_proveedor = P.id_proveedor
+	FROM Pagos p
+	INNER JOIN inserted i ON i.id_pago = p.id_pago;
+
+	-- restar al importe actual el importe del detalle borrado
+	BEGIN TRY 
+		UPDATE Pagos 
+		SET importe_total = importe_total - @importe
+		WHERE id_pago = @id_pago;
+	END TRY
+	BEGIN CATCH 
+		ROLLBACK TRANSACTION;
+		THROW 50003, 'No se pudo actualizar el monto', 1;
+	END CATCH
+
+	-- modificar el saldo en la tabla compra
+	BEGIN TRY 
+		UPDATE Compras
+		SET saldo_compra = saldo_compra + @importe
+		WHERE id_compra = @id_compra;
+	END TRY
+	BEGIN CATCH 
+		ROLLBACK TRANSACTION;
+		THROW 50004, 'No se pudo actualizar el saldo', 1;
+	END CATCH
+
+	-- modificar el saldo en la tabla proveedores
+	BEGIN TRY
+		UPDATE Proveedores 
+		SET saldo = saldo + @importe
+		WHERE @id_proveedor = @id_proveedor;
+	END TRY
+	BEGIN CATCH
+		ROLLBACK TRANSACTION;
+		THROW 50004, 'No se pudo actualizar el saldo', 1;
+	END CATCH
+
+END;
+
+GO
+
+-- UPDATE
+CREATE TRIGGER tiu_detalles_pagos
+ON Detalles_Pagos
+AFTER UPDATE
+AS 
+BEGIN
+DECLARE @id_pago INT;
+	DECLARE @id_compra_nuevo INT;
+	DECLARE @id_compra_viejo INT;
+	DECLARE @id_proveedor INT;
+	DECLARE @id_detalle_forma_pago INT;
+	DECLARE @importe_nuevo NUMERIC(12);
+	DECLARE @importe_viejo NUMERIC(12);
+
+	-- inicializar variables con valores del detalle
+	SET @importe_nuevo= (SELECT importe_pagado FROM inserted);
+	SET @importe_viejo= (SELECT importe_pagado FROM deleted);
+	SET @id_pago = (SELECT id_pago FROM inserted);
+	SET @id_compra_nuevo = (SELECT id_compra FROM inserted);
+	SET @id_compra_viejo = (SELECT id_compra FROM inserted);
+
+	-- recuperar proveedor e importe actual de la cabecera
+	SELECT @id_proveedor = P.id_proveedor
+	FROM Pagos p
+	INNER JOIN inserted i ON i.id_pago = p.id_pago;
+
+	-- si se actualiza el monto
+	IF UPDATE(importe_pagado)
+	BEGIN
+		-- actualizar el importe de la cabecera
+		BEGIN TRY 
+			UPDATE Pagos
+			SET importe_total = importe_total - @importe_viejo + @importe_nuevo
+			WHERE id_pago = @id_pago;
+		END TRY
+		BEGIN CATCH
+			ROLLBACK TRANSACTION;
+			THROW 50003, 'No se pudo actualizar el monto', 1;
+		END CATCH
+
+		-- actualizar el saldo de la compra
+		BEGIN TRY 
+			UPDATE Compras
+			SET saldo_compra = saldo_compra + @importe_viejo - @importe_nuevo
+			WHERE id_compra = @id_compra_nuevo;
+		END TRY
+		BEGIN CATCH 
+			ROLLBACK TRANSACTION;
+			THROW 50004, 'No se pudo actualizar el saldo', 1;
+		END CATCH
+
+		-- modificar el saldo en la tabla proveedores
+		BEGIN TRY
+			UPDATE Proveedores 
+			SET saldo = saldo + @importe_viejo - @importe_nuevo
+			WHERE @id_proveedor = @id_proveedor;
+		END TRY
+		BEGIN CATCH
+			ROLLBACK TRANSACTION;
+			THROW 50004, 'No se pudo actualizar el saldo', 1;
+		END CATCH
+	END
+
+		-- si se actualiza el id_compra
+	IF UPDATE(id_compra)
+	BEGIN
+
+		-- volver a aumentar el saldo a la compra anterior
+		BEGIN TRY 
+			UPDATE Compras
+			SET saldo_compra = saldo_compra + @importe_nuevo
+			WHERE id_compra = @id_compra_viejo;
+		END TRY
+		BEGIN CATCH 
+			ROLLBACK TRANSACTION;
+			THROW 50004, 'No se pudo actualizar el saldo', 1;
+		END CATCH
+
+		-- descontar el saldo de la nueva compra
+		BEGIN TRY 
+			UPDATE Compras
+			SET saldo_compra = saldo_compra - @importe_nuevo
+			WHERE id_compra = @id_compra_nuevo;
+		END TRY
+		BEGIN CATCH 
+			ROLLBACK TRANSACTION;
+			THROW 50004, 'No se pudo actualizar el saldo', 1;
+		END CATCH
+	END
+
+	
+END;
