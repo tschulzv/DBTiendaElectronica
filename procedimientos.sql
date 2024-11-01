@@ -1,3 +1,5 @@
+-- voa chi pegao nessa a galera da aviao
+
 --Para dar alta/baja/modificación de una tabla simple (proveedores, productos, etc) (1)
 
 CREATE PROCEDURE sp_ManageProveedor
