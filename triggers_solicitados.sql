@@ -162,13 +162,13 @@ BEGIN
     FROM inserted i
     INNER JOIN deleted d ON i.id_transferencia = d.id_transferencia;
 
-    -- recuperar dep髎itos de origen y destino desde Transferencias_Productos
+    -- recuperar dep贸sitos de origen y destino desde Transferencias_Productos
     SELECT @depo_origen = t.id_deposito_origen, 
            @depo_destino = t.id_deposito_destino
     FROM Transferencias_Productos t
     INNER JOIN inserted i ON i.id_transferencia = t.id_transferencia;
 
-    -- recuperar la cantidad actual en el dep髎ito de origen
+    -- recuperar la cantidad actual en el dep贸sito de origen
     SELECT @stock_origen = st.cantidad
     FROM Stock st
     WHERE st.id_producto = @id_producto_viejo
@@ -184,7 +184,7 @@ BEGIN
             THROW 50001, 'La cantidad solicitada excede el stock', 1;
         END;
 
-        -- actualizar el stock del dep髎ito de origen
+        -- actualizar el stock del dep贸sito de origen
         BEGIN TRY
             UPDATE Stock
             SET cantidad = cantidad + @cantidad_vieja - @cantidad_nueva,
@@ -193,10 +193,10 @@ BEGIN
         END TRY
         BEGIN CATCH
             ROLLBACK TRANSACTION;
-            THROW 50002, 'No se pudo actualizar el stock en el dep髎ito de origen', 2;
+            THROW 50002, 'No se pudo actualizar el stock en el dep贸sito de origen', 2;
         END CATCH;
 
-        -- Actualizar el stock del dep髎ito de destino
+        -- Actualizar el stock del dep贸sito de destino
         BEGIN TRY
             UPDATE Stock
             SET cantidad = cantidad - @cantidad_vieja + @cantidad_nueva,
@@ -205,14 +205,14 @@ BEGIN
         END TRY
         BEGIN CATCH
             ROLLBACK TRANSACTION;
-            THROW 50002, 'No se pudo actualizar el stock en el dep髎ito de destino', 2;
+            THROW 50002, 'No se pudo actualizar el stock en el dep贸sito de destino', 2;
         END CATCH;
     END;
 
     -- codigo para actualizar el producto
     IF UPDATE(id_producto)
     BEGIN
-        -- actualizar el stock del producto viejo en el dep髎ito de origen
+        -- actualizar el stock del producto viejo en el dep贸sito de origen
         BEGIN TRY
             UPDATE Stock
             SET cantidad = cantidad + @cantidad_vieja,
@@ -221,10 +221,10 @@ BEGIN
         END TRY
         BEGIN CATCH
             ROLLBACK TRANSACTION;
-            THROW 50002, 'No se pudo actualizar el stock para el producto viejo en el dep髎ito de origen', 2;
+            THROW 50002, 'No se pudo actualizar el stock para el producto viejo en el dep贸sito de origen', 2;
         END CATCH;
 
-        -- actualizar el stock del producto viejo en el dep髎ito de destino
+        -- actualizar el stock del producto viejo en el dep贸sito de destino
         BEGIN TRY
             UPDATE Stock
             SET cantidad = cantidad - @cantidad_vieja,
@@ -233,10 +233,10 @@ BEGIN
         END TRY
         BEGIN CATCH
             ROLLBACK TRANSACTION;
-            THROW 50002, 'No se pudo actualizar el stock para el producto viejo en el dep髎ito de destino', 2;
+            THROW 50002, 'No se pudo actualizar el stock para el producto viejo en el dep贸sito de destino', 2;
         END CATCH;
 
-        -- validar el stock disponible para el nuevo producto en el dep髎ito de origen
+        -- validar el stock disponible para el nuevo producto en el dep贸sito de origen
         SELECT @stock_origen = cantidad
         FROM Stock
         WHERE id_producto = @id_producto_nuevo AND id_deposito = @depo_origen;
@@ -247,7 +247,7 @@ BEGIN
             THROW 50001, 'La cantidad solicitada excede el stock para el nuevo producto', 1;
         END;
 
-        -- actualizar el stock del nuevo producto en el dep髎ito de origen
+        -- actualizar el stock del nuevo producto en el dep贸sito de origen
         BEGIN TRY
             UPDATE Stock
             SET cantidad = cantidad - @cantidad_nueva,
@@ -256,10 +256,10 @@ BEGIN
         END TRY
         BEGIN CATCH
             ROLLBACK TRANSACTION;
-            THROW 50002, 'No se pudo actualizar el stock para el nuevo producto en el dep髎ito de origen', 2;
+            THROW 50002, 'No se pudo actualizar el stock para el nuevo producto en el dep贸sito de origen', 2;
         END CATCH;
 
-        -- actualizar el stock del nuevo producto en el dep髎ito de destino
+        -- actualizar el stock del nuevo producto en el dep贸sito de destino
         BEGIN TRY
             UPDATE Stock
             SET cantidad = cantidad + @cantidad_nueva,
@@ -268,7 +268,7 @@ BEGIN
         END TRY
         BEGIN CATCH
             ROLLBACK TRANSACTION;
-            THROW 50002, 'No se pudo actualizar el stock para el nuevo producto en el dep髎ito de destino', 2;
+            THROW 50002, 'No se pudo actualizar el stock para el nuevo producto en el dep贸sito de destino', 2;
         END CATCH;
     END;
 END;
@@ -508,3 +508,140 @@ DECLARE @id_pago INT;
 
 	
 END;
+
+
+--Triggers Detalle_Compra
+--INSERT
+CREATE TRIGGER tia_detalles_compras
+ON Detalle_Compras
+AFTER INSERT
+AS
+BEGIN
+    DECLARE @id_compra INT;
+    DECLARE @id_producto INT;
+    DECLARE @cantidad NUMERIC(6);
+    DECLARE @costo_unitario NUMERIC(9);
+    DECLARE @id_deposito INT;
+    DECLARE @nuevo_total NUMERIC(12, 2);
+
+    -- Obtener valores del registro insertado
+    SELECT 
+        @id_compra = i.id_compra,
+        @id_producto = i.id_producto,
+        @cantidad = i.cantidad,
+        @costo_unitario = i.costo_unitario
+    FROM inserted i;
+
+    -- Obtener id_deposito desde Compras
+    SELECT @id_deposito = c.id_deposito
+    FROM Compras c
+    WHERE c.id_compra = @id_compra;
+
+    -- Calcular el nuevo total de la compra
+    SELECT @nuevo_total = SUM(cantidad * costo_unitario)
+    FROM Detalle_Compras
+    WHERE id_compra = @id_compra;
+
+    -- Actualizar el total de la compra en la tabla Compras
+    UPDATE Compras
+    SET total_compra = @nuevo_total
+    WHERE id_compra = @id_compra;
+
+    -- Actualizar el stock del producto en la tabla Stock
+    UPDATE Stock
+    SET cantidad = cantidad + @cantidad,
+        ultima_actualizacion = GETDATE()
+    WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
+END;
+GO
+
+--UPDATE
+CREATE TRIGGER tua_detalle_compras
+ON Detalle_Compras
+AFTER UPDATE
+AS
+BEGIN
+    DECLARE @id_compra INT;
+    DECLARE @id_producto INT;
+    DECLARE @cantidad_antigua NUMERIC(6);
+    DECLARE @cantidad_nueva NUMERIC(6);
+    DECLARE @costo_unitario NUMERIC(9);
+    DECLARE @id_deposito INT;
+    DECLARE @nuevo_total NUMERIC(12, 2);
+
+    -- Obtener valores del registro actualizado
+    SELECT 
+        @id_compra = i.id_compra,
+        @id_producto = i.id_producto,
+        @cantidad_nueva = i.cantidad,
+        @costo_unitario = i.costo_unitario,
+        @cantidad_antigua = d.cantidad
+    FROM inserted i
+    JOIN deleted d ON i.id_detalle = d.id_detalle;
+
+    -- Obtener id_deposito desde Compras
+    SELECT @id_deposito = c.id_deposito
+    FROM Compras c
+    WHERE c.id_compra = @id_compra;
+
+    -- Calcular el nuevo total de la compra
+    SELECT @nuevo_total = SUM(cantidad * costo_unitario)
+    FROM Detalle_Compras
+    WHERE id_compra = @id_compra;
+
+    -- Actualizar el total de la compra en la tabla Compras
+    UPDATE Compras
+    SET total_compra = @nuevo_total
+    WHERE id_compra = @id_compra;
+
+    -- Actualizar el stock del producto en la tabla Stock
+    UPDATE Stock
+    SET cantidad = cantidad - @cantidad_antigua + @cantidad_nueva,
+        ultima_actualizacion = GETDATE()
+    WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
+END;
+GO
+
+--DELETE
+CREATE TRIGGER tda_detalle_compras
+ON Detalle_Compras
+AFTER DELETE
+AS
+BEGIN
+    DECLARE @id_compra INT;
+    DECLARE @id_producto INT;
+    DECLARE @cantidad NUMERIC(6);
+    DECLARE @costo_unitario NUMERIC(9);
+    DECLARE @id_deposito INT;
+    DECLARE @nuevo_total NUMERIC(12, 2);
+
+    -- Obtener valores del registro eliminado
+    SELECT 
+        @id_compra = d.id_compra,
+        @id_producto = d.id_producto,
+        @cantidad = d.cantidad,
+        @costo_unitario = d.costo_unitario
+    FROM deleted d;
+
+    -- Obtener id_deposito desde Compras
+    SELECT @id_deposito = c.id_deposito
+    FROM Compras c
+    WHERE c.id_compra = @id_compra;
+
+    -- Calcular el nuevo total de la compra
+    SELECT @nuevo_total = SUM(cantidad * costo_unitario)
+    FROM Detalle_Compras
+    WHERE id_compra = @id_compra;
+
+    -- Actualizar el total de la compra en la tabla Compras
+    UPDATE Compras
+    SET total_compra = @nuevo_total
+    WHERE id_compra = @id_compra;
+
+    -- Actualizar el stock del producto en la tabla Stock
+    UPDATE Stock
+    SET cantidad = cantidad - @cantidad,
+        ultima_actualizacion = GETDATE()
+    WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
+END;
+GO
