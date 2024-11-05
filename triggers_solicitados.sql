@@ -1,26 +1,8 @@
-/*
-1. detalles_transferencia sobre venteos inserrt delet y update
-  actualizar stock: restar para deposito irigen y sumar para deposito destino
-
-(2. stock control si es menor a 0 como un trigger sobre el update)
-
-(3. linea de credito de los proveedores : sobre la tabla de compras , sila compra es a credito validar )
-
-4. compras
-trigger actualizar cabecera de compras, el total de la factura y tbn actualizar el stock
-los 3 eventos
-
-5. pagos de proveedores 
-los  3 eventos
-
-
-
-*/
 
 USE TiendaElectronica;
 
-
--- probando insert
+/*
+-- para probando insert
 INSERT INTO Detalles_Transferencia VALUES (
 4, 1, 1, 2);
 
@@ -32,7 +14,7 @@ WHERE id_detalle_transferencia = 4;
 DELETE FROM Detalles_Transferencia
 WHERE id_detalle_transferencia = 4;
 
-USE TiendaElectronica;
+*/
 GO
 
 -- TRIGGERS PARA DETALLES_TRANSFERENCIA ------------------------------------------
@@ -158,7 +140,7 @@ END;
 
 GO
 
-CREATE TRIGGER tiu_detalles_transferencia
+CREATE TRIGGER tbu_detalles_transferencia
 ON Detalles_Transferencia
 AFTER UPDATE
 AS
@@ -291,7 +273,7 @@ BEGIN
     END;
 END;
 
-/** 
+/** ------------------------------------------------------------
 PAGOS A PROVEEDORES
 **/
 
@@ -299,7 +281,20 @@ Select * from Pagos;
 select * from Detalles_Pagos;
 select * from Compras;
 select * from Proveedores;
+
 -- INSERT 
+
+/* PROBAR 
+insert into Detalles_Pagos 
+VALUES (10, 1, 1, 1000000);
+
+delete from detalles_pagos
+where id_detalle_pago = 10;
+
+update Detalles_Pagos
+set importe_pagado = 1500000
+where id_detalle_pago = 10;
+*/
 
 GO
 
@@ -350,7 +345,7 @@ BEGIN
 	BEGIN TRY
 		UPDATE Proveedores 
 		SET saldo = saldo - @importe
-		WHERE @id_proveedor = @id_proveedor;
+		WHERE id_proveedor = @id_proveedor;
 	END TRY
 	BEGIN CATCH
 		ROLLBACK TRANSACTION;
@@ -381,7 +376,7 @@ BEGIN
 	-- recuperar proveedor e importe actual de la cabecera
 	SELECT @id_proveedor = P.id_proveedor
 	FROM Pagos p
-	INNER JOIN inserted i ON i.id_pago = p.id_pago;
+	INNER JOIN deleted i ON i.id_pago = p.id_pago;
 
 	-- restar al importe actual el importe del detalle borrado
 	BEGIN TRY 
@@ -409,7 +404,7 @@ BEGIN
 	BEGIN TRY
 		UPDATE Proveedores 
 		SET saldo = saldo + @importe
-		WHERE @id_proveedor = @id_proveedor;
+		WHERE id_proveedor = @id_proveedor;
 	END TRY
 	BEGIN CATCH
 		ROLLBACK TRANSACTION;
@@ -421,7 +416,7 @@ END;
 GO
 
 -- UPDATE
-CREATE TRIGGER tiu_detalles_pagos
+CREATE TRIGGER tub_detalles_pagos
 ON Detalles_Pagos
 AFTER UPDATE
 AS 
@@ -475,7 +470,7 @@ DECLARE @id_pago INT;
 		BEGIN TRY
 			UPDATE Proveedores 
 			SET saldo = saldo + @importe_viejo - @importe_nuevo
-			WHERE @id_proveedor = @id_proveedor;
+			WHERE id_proveedor = @id_proveedor;
 		END TRY
 		BEGIN CATCH
 			ROLLBACK TRANSACTION;
@@ -508,6 +503,7 @@ DECLARE @id_pago INT;
 			ROLLBACK TRANSACTION;
 			THROW 50004, 'No se pudo actualizar el saldo', 1;
 		END CATCH
+
 	END
 
 	
