@@ -590,6 +590,7 @@ BEGIN
     DECLARE @id_compra INT;
     DECLARE @id_proveedor INT;
     DECLARE @id_producto INT;
+    DECLARE @id_producto_antiguo INT;
     DECLARE @cantidad_antigua NUMERIC(6);
     DECLARE @cantidad_nueva NUMERIC(6);
     DECLARE @costo_unitario NUMERIC(9);
@@ -603,7 +604,8 @@ BEGIN
         @id_producto = i.id_producto,
         @cantidad_nueva = i.cantidad,
         @costo_unitario = i.costo_unitario,
-        @cantidad_antigua = d.cantidad
+        @cantidad_antigua = d.cantidad,
+        @id_producto_antiguo = d.id_producto
     FROM inserted i
     JOIN deleted d ON i.id_detalle = d.id_detalle
     JOIN Compras c ON i.id_compra = c.id_compra;
@@ -630,6 +632,16 @@ BEGIN
         RAISERROR ('El saldo no puede superar la línea de crédito asignada al proveedor', 16, 1);
         RETURN;
     END;
+	-- Verificar que la cantidad no sea negativa 
+	IF EXISTS ( 
+		SELECT 1 
+		FROM Stock s 
+		WHERE s.id_producto = @id_producto 
+		AND s.id_deposito = @id_deposito 
+		AND (s.cantidad - @cantidad_antigua + @cantidad_nueva) < 0 
+	) 
+	BEGIN	
+		THROW 50002, 'La cantidad no puede ser negativa', 1; END
 
     -- Actualizar el total de la compra en la tabla Compras
     UPDATE Compras
@@ -646,7 +658,7 @@ BEGIN
     WHERE id_proveedor = @id_proveedor;
 
     -- Actualizar el stock del producto en la tabla Stock
-    IF @id_producto = d.id_producto
+    IF @id_producto = @id_producto_antiguo
     BEGIN
         UPDATE Stock
         SET cantidad = cantidad - @cantidad_antigua + @cantidad_nueva,
@@ -659,7 +671,7 @@ BEGIN
         UPDATE Stock
         SET cantidad = cantidad + @cantidad_antigua,
             ultima_actualizacion = GETDATE()
-        WHERE id_producto = d.id_producto AND id_deposito = @id_deposito;
+        WHERE id_producto = @id_producto_antiguo AND id_deposito = @id_deposito;
 
         -- Sumar el stock del producto nuevo
         UPDATE Stock
@@ -669,7 +681,6 @@ BEGIN
     END
 END;
 GO
-
 
 --DELETE 
 CREATE TRIGGER tda_detalle_compras
@@ -701,9 +712,23 @@ BEGIN
     WHERE c.id_compra = @id_compra;
 
     -- Calcular el nuevo total de la compra
-    SELECT @nuevo_total = SUM(cantidad * costo_unitario)
+    SELECT @nuevo_total = ISNULL(SUM(cantidad * costo_unitario), 0)
     FROM Detalle_Compras
     WHERE id_compra = @id_compra;
+
+	-- Verificar que la cantidad no sea negativa 
+	IF EXISTS ( 
+		SELECT 1 
+		FROM Stock s 
+		WHERE s.id_producto = @id_producto 
+		AND s.id_deposito = @id_deposito 
+		AND (s.cantidad - @cantidad) < 0 
+	) 
+	BEGIN	
+		ROLLBACK TRANSACTION; 
+		RAISERROR ('La cantidad no puede ser negativa', 16, 1); 
+		RETURN; 
+	END;
 
     -- Verificar que el nuevo saldo no supere la línea de crédito
     IF EXISTS (
