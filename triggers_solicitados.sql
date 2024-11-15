@@ -518,6 +518,7 @@ AFTER INSERT
 AS
 BEGIN
     DECLARE @id_compra INT;
+    DECLARE @id_proveedor INT;
     DECLARE @id_producto INT;
     DECLARE @cantidad NUMERIC(6);
     DECLARE @costo_unitario NUMERIC(9);
@@ -527,10 +528,12 @@ BEGIN
     -- Obtener valores del registro insertado
     SELECT 
         @id_compra = i.id_compra,
+        @id_proveedor = c.id_proveedor,
         @id_producto = i.id_producto,
         @cantidad = i.cantidad,
         @costo_unitario = i.costo_unitario
-    FROM inserted i;
+    FROM inserted i
+    JOIN Compras c ON i.id_compra = c.id_compra;
 
     -- Obtener id_deposito desde Compras
     SELECT @id_deposito = c.id_deposito
@@ -542,10 +545,32 @@ BEGIN
     FROM Detalle_Compras
     WHERE id_compra = @id_compra;
 
+    -- Verificar que el nuevo saldo no supere la línea de crédito
+    IF EXISTS (
+        SELECT 1
+        FROM Proveedores p
+        WHERE p.id_proveedor = @id_proveedor
+        AND (p.saldo + @nuevo_total) > p.linea_credito
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        RAISERROR ('El saldo no puede superar la línea de crédito asignada al proveedor', 16, 1);
+        RETURN;
+    END;
+
     -- Actualizar el total de la compra en la tabla Compras
     UPDATE Compras
     SET total_compra = @nuevo_total
     WHERE id_compra = @id_compra;
+
+    -- Actualizar el saldo de la compra y del proveedor
+    UPDATE Compras
+    SET saldo_compra = saldo_compra + @nuevo_total
+    WHERE id_compra = @id_compra;
+
+    UPDATE Proveedores
+    SET saldo = saldo + @nuevo_total
+    WHERE id_proveedor = @id_proveedor;
 
     -- Actualizar el stock del producto en la tabla Stock
     UPDATE Stock
@@ -555,6 +580,7 @@ BEGIN
 END;
 GO
 
+
 --UPDATE
 CREATE TRIGGER tua_detalle_compras
 ON Detalle_Compras
@@ -562,6 +588,7 @@ AFTER UPDATE
 AS
 BEGIN
     DECLARE @id_compra INT;
+    DECLARE @id_proveedor INT;
     DECLARE @id_producto INT;
     DECLARE @cantidad_antigua NUMERIC(6);
     DECLARE @cantidad_nueva NUMERIC(6);
@@ -572,12 +599,14 @@ BEGIN
     -- Obtener valores del registro actualizado
     SELECT 
         @id_compra = i.id_compra,
+        @id_proveedor = c.id_proveedor,
         @id_producto = i.id_producto,
         @cantidad_nueva = i.cantidad,
         @costo_unitario = i.costo_unitario,
         @cantidad_antigua = d.cantidad
     FROM inserted i
-    JOIN deleted d ON i.id_detalle = d.id_detalle;
+    JOIN deleted d ON i.id_detalle = d.id_detalle
+    JOIN Compras c ON i.id_compra = c.id_compra;
 
     -- Obtener id_deposito desde Compras
     SELECT @id_deposito = c.id_deposito
@@ -589,26 +618,67 @@ BEGIN
     FROM Detalle_Compras
     WHERE id_compra = @id_compra;
 
+    -- Verificar que el nuevo saldo no supere la línea de crédito
+    IF EXISTS (
+        SELECT 1
+        FROM Proveedores p
+        WHERE p.id_proveedor = @id_proveedor
+        AND (p.saldo - (@cantidad_antigua * @costo_unitario) + @nuevo_total) > p.linea_credito
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        RAISERROR ('El saldo no puede superar la línea de crédito asignada al proveedor', 16, 1);
+        RETURN;
+    END;
+
     -- Actualizar el total de la compra en la tabla Compras
     UPDATE Compras
     SET total_compra = @nuevo_total
     WHERE id_compra = @id_compra;
 
+    -- Ajustar el saldo de la compra y del proveedor
+    UPDATE Compras
+    SET saldo_compra = saldo_compra - (@cantidad_antigua * @costo_unitario) + @nuevo_total
+    WHERE id_compra = @id_compra;
+
+    UPDATE Proveedores
+    SET saldo = saldo - (@cantidad_antigua * @costo_unitario) + @nuevo_total
+    WHERE id_proveedor = @id_proveedor;
+
     -- Actualizar el stock del producto en la tabla Stock
-    UPDATE Stock
-    SET cantidad = cantidad - @cantidad_antigua + @cantidad_nueva,
-        ultima_actualizacion = GETDATE()
-    WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
+    IF @id_producto = d.id_producto
+    BEGIN
+        UPDATE Stock
+        SET cantidad = cantidad - @cantidad_antigua + @cantidad_nueva,
+            ultima_actualizacion = GETDATE()
+        WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
+    END
+    ELSE
+    BEGIN
+        -- Restar el stock del producto antiguo
+        UPDATE Stock
+        SET cantidad = cantidad + @cantidad_antigua,
+            ultima_actualizacion = GETDATE()
+        WHERE id_producto = d.id_producto AND id_deposito = @id_deposito;
+
+        -- Sumar el stock del producto nuevo
+        UPDATE Stock
+        SET cantidad = cantidad - @cantidad_nueva,
+            ultima_actualizacion = GETDATE()
+        WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
+    END
 END;
 GO
 
---DELETE
+
+--DELETE 
 CREATE TRIGGER tda_detalle_compras
 ON Detalle_Compras
 AFTER DELETE
 AS
 BEGIN
     DECLARE @id_compra INT;
+    DECLARE @id_proveedor INT;
     DECLARE @id_producto INT;
     DECLARE @cantidad NUMERIC(6);
     DECLARE @costo_unitario NUMERIC(9);
@@ -618,10 +688,12 @@ BEGIN
     -- Obtener valores del registro eliminado
     SELECT 
         @id_compra = d.id_compra,
+        @id_proveedor = c.id_proveedor,
         @id_producto = d.id_producto,
         @cantidad = d.cantidad,
         @costo_unitario = d.costo_unitario
-    FROM deleted d;
+    FROM deleted d
+    JOIN Compras c ON d.id_compra = c.id_compra;
 
     -- Obtener id_deposito desde Compras
     SELECT @id_deposito = c.id_deposito
@@ -633,10 +705,32 @@ BEGIN
     FROM Detalle_Compras
     WHERE id_compra = @id_compra;
 
+    -- Verificar que el nuevo saldo no supere la línea de crédito
+    IF EXISTS (
+        SELECT 1
+        FROM Proveedores p
+        WHERE p.id_proveedor = @id_proveedor
+        AND (p.saldo - (@cantidad * @costo_unitario)) > p.linea_credito
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        RAISERROR ('El saldo no puede superar la línea de crédito asignada al proveedor', 16, 1);
+        RETURN;
+    END;
+
     -- Actualizar el total de la compra en la tabla Compras
     UPDATE Compras
     SET total_compra = @nuevo_total
     WHERE id_compra = @id_compra;
+
+    -- Ajustar el saldo de la compra y del proveedor
+    UPDATE Compras
+    SET saldo_compra = saldo_compra - (@cantidad * @costo_unitario)
+    WHERE id_compra = @id_compra;
+
+    UPDATE Proveedores
+    SET saldo = saldo - (@cantidad * @costo_unitario)
+    WHERE id_proveedor = @id_proveedor;
 
     -- Actualizar el stock del producto en la tabla Stock
     UPDATE Stock
