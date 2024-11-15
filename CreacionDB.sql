@@ -1,5 +1,5 @@
-CREATE DATABASE TiendaElectronica;
-USE TiendaElectronica;
+CREATE DATABASE DBTienda;
+USE DBTienda;
 
 -- creación de tablas
 CREATE TABLE Medios_de_Pago (
@@ -21,7 +21,9 @@ CREATE TABLE Proveedores (
   telefono VARCHAR(15) not null,
   correo_electronico VARCHAR(100) null,
   linea_credito NUMERIC(12) not null,
-  PRIMARY KEY (id_proveedor)
+  saldo numeric(12) not null,
+  PRIMARY KEY (id_proveedor),
+  CONSTRAINT chk_saldo_vs_credito CHECK (saldo <= linea_credito)
 );
 
 CREATE TABLE Pagos (
@@ -132,7 +134,8 @@ CREATE TABLE Stock (
   ultima_actualizacion DATE not null,
   PRIMARY KEY (id_stock),
   FOREIGN KEY (id_producto) REFERENCES Productos(id_producto),
-  FOREIGN KEY (id_deposito) REFERENCES Depositos(id_deposito)
+  FOREIGN KEY (id_deposito) REFERENCES Depositos(id_deposito),
+  CONSTRAINT chk_cantidad_stock CHECK (cantidad >= 0)
 );
 
 CREATE TABLE Detalles_Pagos (
@@ -158,17 +161,17 @@ INSERT INTO Depositos (id_deposito, nombre) VALUES
 (2, 'Depósito Secundario');
 
 -- Insertar datos en Proveedores
-INSERT INTO Proveedores (id_proveedor, nombre, direccion, telefono, correo_electronico, linea_credito) VALUES
-(1, 'Proveedora Tecnológica S.A.', 'Av. Mariscal López 1234', '+595991123456', 'contacto@proveedoratec.com', 50000000),
-(2, 'Suministros Informáticos SRL', 'Calle Palma 567', '+595991654321', 'ventas@suministros.com', 75000000),
-(3, 'Computadoras del Sur', 'Av. San Martín 890', '+595991987654', 'info@computadorasdelsur.com', 100000000),
-(4, 'Tecnología Guaraní', 'Ruta Transchaco Km 12', '+595992345678', 'soporte@tecguarani.com', 60000000),
-(5, 'Distribuidora Bytes', 'Av. España 456', '+595991112233', 'ventas@bytes.com', 85000000),
-(6, 'Hardware Plus', 'Calle Artigas 234', '+595992334455', 'info@hardwareplus.com', 45000000),
-(7, 'Periféricos del Este', 'Av. Pioneros 678', '+595991223344', 'ventas@perifericoseste.com', 78000000),
-(8, 'Electrónica Integral', 'Ruta Luque-San Bernardino', '+595992445566', 'contacto@electronicaintegral.com', 50000000),
-(9, 'Innovaciones Informáticas', 'Av. Molas López 234', '+595991998877', 'soporte@innovatics.com', 60000000),
-(10, 'Tecnología Avanzada PY', 'Calle Constitución 100', '+595992556677', 'ventas@tecnologiapy.com', 72000000);
+INSERT INTO Proveedores (id_proveedor, nombre, direccion, telefono, correo_electronico, linea_credito, saldo) VALUES
+(1, 'Proveedora Tecnológica S.A.', 'Av. Mariscal López 1234', '+595991123456', 'contacto@proveedoratec.com', 50000000, 2500000),
+(2, 'Suministros Informáticos SRL', 'Calle Palma 567', '+595991654321', 'ventas@suministros.com', 75000000, 10000000),
+(3, 'Computadoras del Sur', 'Av. San Martín 890', '+595991987654', 'info@computadorasdelsur.com', 100000000, 0),
+(4, 'Tecnología Guaraní', 'Ruta Transchaco Km 12', '+595992345678', 'soporte@tecguarani.com', 60000000, 0),
+(5, 'Distribuidora Bytes', 'Av. España 456', '+595991112233', 'ventas@bytes.com', 85000000, 900000),
+(6, 'Hardware Plus', 'Calle Artigas 234', '+595992334455', 'info@hardwareplus.com', 45000000, 0),
+(7, 'Periféricos del Este', 'Av. Pioneros 678', '+595991223344', 'ventas@perifericoseste.com', 78000000, 0),
+(8, 'Electrónica Integral', 'Ruta Luque-San Bernardino', '+595992445566', 'contacto@electronicaintegral.com', 50000000, 0),
+(9, 'Innovaciones Informáticas', 'Av. Molas López 234', '+595991998877', 'soporte@innovatics.com', 60000000, 0),
+(10, 'Tecnología Avanzada PY', 'Calle Constitución 100', '+595992556677', 'ventas@tecnologiapy.com', 72000000, 0);
 
 -- Insertar datos en Empleados
 INSERT INTO Empleados (id_empleado, nombre) VALUES
@@ -281,23 +284,46 @@ INSERT INTO Detalles_Forma_Pago (id_detalle_forma_pago, id_pago, id_medio_de_pag
 
 -- Insertar datos en Stock
 INSERT INTO Stock (id_stock, id_producto, id_deposito, cantidad, ultima_actualizacion) VALUES
-(1, 1, 1, 5, '2024-01-31'),
+(1, 1, 1, 0, '2024-01-31'),
 (2, 2, 2, 3, '2024-03-31'), 
 (3, 3, 1, 5, '2024-03-31'), 
-(4, 4, 2, 15, '2024-03-01'), 
+(4, 4, 1, 15, '2024-03-01'), 
 (5, 5, 1, 2, '2024-03-01'),
-(6, 1, 2, 5, '2024-01-31'),
+(6, 1, 2, 10, '2024-01-31'),
 (7, 2, 1, 3, '2024-03-31'),
 (8, 3, 2, 10, '2024-03-31'); 
 
 -- Insertar datos en Transferencias_Productos
 INSERT INTO Transferencias_Productos (id_transferencia, fecha, id_deposito_origen, id_deposito_destino, id_encargado, id_autorizante) VALUES
 (1, '2024-01-31', 1, 2, 1, 2),
-(2, '2024-03-31', 2, 1, 3, 4),
+(2, '2024-03-31', 1, 2, 3, 4),
 (3, '2024-03-31', 1, 2, 5, 6);
 
 -- Insertar datos en Detalles_Transferencia
 INSERT INTO Detalles_Transferencia (id_detalle_transferencia, id_transferencia, id_producto, cantidad) VALUES
 (1, 1, 1, 5),  -- 5 Laptops HP transferidas del Depósito Central al Secundario
-(2, 2, 2, 3),  -- 3 Monitores Dell transferidos del Depósito Secundario al Central
-(3, 3, 3, 10); -- 10 Teclados Lenovo transferidos del Depósito Central al Secundario
+(2, 2, 2, 3),  -- 3 Monitores Dell transferidos del Depósito Central al Secundario
+(3, 3, 3, 5); -- 5 Teclados Lenovo transferidos del Depósito Central al Secundario
+
+select * from compras;
+select * from Detalle_Compras;
+select * from Transferencias_Productos;
+select * from Detalles_Transferencia;
+select * from stock;
+
+select c.id_deposito, c.total_compra, d.id_producto, d.cantidad, d.costo_unitario
+from compras c
+inner join Detalle_Compras d on c.id_compra = d.id_compra
+order by d.id_producto, c.id_deposito asc;
+
+select * from stock
+order by id_producto, id_deposito asc;
+
+select t.id_deposito_origen, t.id_deposito_destino, d.id_producto, d.cantidad, t.fecha
+from Transferencias_Productos t
+join Detalles_Transferencia d on t.id_transferencia = d.id_transferencia;
+
+truncate table stock;
+
+select * from Transferencias_Productos;
+truncate table detalles_transferencia;
