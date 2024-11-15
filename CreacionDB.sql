@@ -1,7 +1,7 @@
 CREATE DATABASE DBTienda;
 USE DBTienda;
 
--- creaciÛn de tablas
+-- creaci√≥n de tablas
 CREATE TABLE Medios_de_Pago (
   id_medio_de_pago INT not null,
   descripcion VARCHAR(50) not null,
@@ -152,39 +152,39 @@ CREATE TABLE Detalles_Pagos (
 INSERT INTO Medios_de_Pago (id_medio_de_pago, descripcion) VALUES
 (1, 'Efectivo'),
 (2, 'Transferencia Bancaria'),
-(3, 'Tarjeta de CrÈdito'),
-(4, 'Tarjeta de DÈbito');
+(3, 'Tarjeta de Cr√©dito'),
+(4, 'Tarjeta de D√©bito');
 
 -- Insertar datos en Depositos
 INSERT INTO Depositos (id_deposito, nombre) VALUES
-(1, 'DepÛsito Central'),
-(2, 'DepÛsito Secundario');
+(1, 'Dep√≥sito Central'),
+(2, 'Dep√≥sito Secundario');
 
 -- Insertar datos en Proveedores
 INSERT INTO Proveedores (id_proveedor, nombre, direccion, telefono, correo_electronico, linea_credito, saldo) VALUES
-(1, 'Proveedora TecnolÛgica S.A.', 'Av. Mariscal LÛpez 1234', '+595991123456', 'contacto@proveedoratec.com', 50000000, 2500000),
-(2, 'Suministros Inform·ticos SRL', 'Calle Palma 567', '+595991654321', 'ventas@suministros.com', 75000000, 10000000),
-(3, 'Computadoras del Sur', 'Av. San MartÌn 890', '+595991987654', 'info@computadorasdelsur.com', 100000000, 0),
-(4, 'TecnologÌa GuaranÌ', 'Ruta Transchaco Km 12', '+595992345678', 'soporte@tecguarani.com', 60000000, 0),
-(5, 'Distribuidora Bytes', 'Av. EspaÒa 456', '+595991112233', 'ventas@bytes.com', 85000000, 900000),
+(1, 'Proveedora Tecnol√≥gica S.A.', 'Av. Mariscal L√≥pez 1234', '+595991123456', 'contacto@proveedoratec.com', 50000000, 2500000),
+(2, 'Suministros Inform√°ticos SRL', 'Calle Palma 567', '+595991654321', 'ventas@suministros.com', 75000000, 10000000),
+(3, 'Computadoras del Sur', 'Av. San Mart√≠n 890', '+595991987654', 'info@computadorasdelsur.com', 100000000, 0),
+(4, 'Tecnolog√≠a Guaran√≠', 'Ruta Transchaco Km 12', '+595992345678', 'soporte@tecguarani.com', 60000000, 0),
+(5, 'Distribuidora Bytes', 'Av. Espa√±a 456', '+595991112233', 'ventas@bytes.com', 85000000, 900000),
 (6, 'Hardware Plus', 'Calle Artigas 234', '+595992334455', 'info@hardwareplus.com', 45000000, 0),
-(7, 'PerifÈricos del Este', 'Av. Pioneros 678', '+595991223344', 'ventas@perifericoseste.com', 78000000, 0),
-(8, 'ElectrÛnica Integral', 'Ruta Luque-San Bernardino', '+595992445566', 'contacto@electronicaintegral.com', 50000000, 0),
-(9, 'Innovaciones Inform·ticas', 'Av. Molas LÛpez 234', '+595991998877', 'soporte@innovatics.com', 60000000, 0),
-(10, 'TecnologÌa Avanzada PY', 'Calle ConstituciÛn 100', '+595992556677', 'ventas@tecnologiapy.com', 72000000, 0);
+(7, 'Perif√©ricos del Este', 'Av. Pioneros 678', '+595991223344', 'ventas@perifericoseste.com', 78000000, 0),
+(8, 'Electr√≥nica Integral', 'Ruta Luque-San Bernardino', '+595992445566', 'contacto@electronicaintegral.com', 50000000, 0),
+(9, 'Innovaciones Inform√°ticas', 'Av. Molas L√≥pez 234', '+595991998877', 'soporte@innovatics.com', 60000000, 0),
+(10, 'Tecnolog√≠a Avanzada PY', 'Calle Constituci√≥n 100', '+595992556677', 'ventas@tecnologiapy.com', 72000000, 0);
 
 -- Insertar datos en Empleados
 INSERT INTO Empleados (id_empleado, nombre) VALUES
-(1, 'Carlos Gonz·lez'),
-(2, 'Laura Fern·ndez'),
-(3, 'Mario C·ceres'),
+(1, 'Carlos Gonz√°lez'),
+(2, 'Laura Fern√°ndez'),
+(3, 'Mario C√°ceres'),
 (4, 'Ana Pereira'),
-(5, 'Jorge RamÌrez'),
-(6, 'SofÌa LÛpez'),
-(7, 'MartÌn Duarte'),
+(5, 'Jorge Ram√≠rez'),
+(6, 'Sof√≠a L√≥pez'),
+(7, 'Mart√≠n Duarte'),
 (8, 'Fernando Franco'),
 (9, 'Gabriela Villalba'),
-(10, 'Rodrigo BenÌtez');
+(10, 'Rodrigo Ben√≠tez');
 
 -- Insertar datos en Marcas
 INSERT INTO Marcas (id_marca, nombre) VALUES
@@ -208,31 +208,31 @@ INSERT INTO Categorias (id_categoria, nombre) VALUES
 (5, 'Impresoras'),
 (6, 'Discos Duros'),
 (7, 'Memorias RAM'),
-(8, 'Tarjetas Gr·ficas'),
+(8, 'Tarjetas Gr√°ficas'),
 (9, 'Procesadores'),
-(10, 'Fuentes de AlimentaciÛn');
+(10, 'Fuentes de Alimentaci√≥n');
 
 -- Insertar datos en Productos
 INSERT INTO Productos (id_producto, descripcion, id_marca, id_categoria, ultimo_costo_unitario, paga_iva, porcentaje_iva) VALUES
 (1, 'Laptop HP Pavilion 15', 1, 1, 4500000, 1, 10),
 (2, 'Monitor Dell 24 pulgadas', 2, 2, 1200000, 1, 10),
-(3, 'Teclado Mec·nico Lenovo', 3, 3, 350000, 1, 5),
-(4, 'Mouse ”ptico Asus', 4, 4, 150000, 1, 5),
-(5, 'Impresora MultifunciÛn HP', 1, 5, 950000, 1, 10),
+(3, 'Teclado Mec√°nico Lenovo', 3, 3, 350000, 1, 5),
+(4, 'Mouse √ìptico Asus', 4, 4, 150000, 1, 5),
+(5, 'Impresora Multifunci√≥n HP', 1, 5, 950000, 1, 10),
 (6, 'Disco Duro Externo 1TB Toshiba', 8, 6, 400000, 1, 5),
 (7, 'Memoria RAM DDR4 16GB Corsair', 7, 7, 750000, 1, 5),
-(8, 'Tarjeta Gr·fica RTX 3060', 6, 8, 6000000, 1, 10),
+(8, 'Tarjeta Gr√°fica RTX 3060', 6, 8, 6000000, 1, 10),
 (9, 'Procesador Intel i7 12th Gen', 9, 9, 2000000, 1, 10),
-(10, 'Fuente de AlimentaciÛn 700W Corsair', 7, 10, 350000, 1, 5);
+(10, 'Fuente de Alimentaci√≥n 700W Corsair', 7, 10, 350000, 1, 5);
 
 -- Insertar datos en Compras
 INSERT INTO Compras (id_compra, id_proveedor, fecha_compra, condicion_compra, fecha_vencimiento, id_deposito, total_compra, saldo_compra) VALUES
-(1, 1, '2024-01-20', 'CrÈdito', '2024-02-20', 1, 22500000, 2500000), 
+(1, 1, '2024-01-20', 'Cr√©dito', '2024-02-20', 1, 22500000, 2500000), 
 (2, 2, '2024-01-20', 'Contado', '2024-01-20', 1, 3600000, 0),
-(3, 3, '2024-02-15', 'CrÈdito', '2024-03-15', 1, 3500000, 0), 
+(3, 3, '2024-02-15', 'Cr√©dito', '2024-03-15', 1, 3500000, 0), 
 (4, 4, '2024-03-01', 'Contado', '2024-03-01', 1, 2250000, 0), 
-(5, 5, '2024-03-01', 'CrÈdito', '2024-04-20', 1, 1900000, 900000), 
-(6, 2, '2024-03-22', 'CrÈdito', '2024-04-22', 2, 22500000, 10000000), -- nuevos datos
+(5, 5, '2024-03-01', 'Cr√©dito', '2024-04-20', 1, 1900000, 900000), 
+(6, 2, '2024-03-22', 'Cr√©dito', '2024-04-22', 2, 22500000, 10000000), -- nuevos datos
 (7, 3, '2024-03-22', 'Contado', '2024-03-22', 1, 3600000, 0),
 (8, 4, '2024-03-30', 'Contado', '2024-03-30', 2, 1750000, 0);
 
@@ -301,10 +301,11 @@ INSERT INTO Transferencias_Productos (id_transferencia, fecha, id_deposito_orige
 
 -- Insertar datos en Detalles_Transferencia
 INSERT INTO Detalles_Transferencia (id_detalle_transferencia, id_transferencia, id_producto, cantidad) VALUES
-(1, 1, 1, 5),  -- 5 Laptops HP transferidas del DepÛsito Central al Secundario
-(2, 2, 2, 3),  -- 3 Monitores Dell transferidos del DepÛsito Central al Secundario
-(3, 3, 3, 5); -- 5 Teclados Lenovo transferidos del DepÛsito Central al Secundario
+(1, 1, 1, 5),  -- 5 Laptops HP transferidas del Dep√≥sito Central al Secundario
+(2, 2, 2, 3),  -- 3 Monitores Dell transferidos del Dep√≥sito Central al Secundario
+(3, 3, 3, 5); -- 5 Teclados Lenovo transferidos del Dep√≥sito Central al Secundario
 
+/*
 select * from compras;
 select * from Detalle_Compras;
 select * from Transferencias_Productos;
@@ -326,4 +327,4 @@ join Detalles_Transferencia d on t.id_transferencia = d.id_transferencia;
 truncate table stock;
 
 select * from Transferencias_Productos;
-truncate table detalles_transferencia;
+truncate table detalles_transferencia;*/
