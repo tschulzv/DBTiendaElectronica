@@ -34,6 +34,62 @@ BEGIN
     END
 END;
 
+------------------ MANAGE PROVEEDOR CON TRY CATCH (no quiero borrar el otro pq me da amsiedad que este al final no ande) ------------------
+
+CREATE PROCEDURE sp_ManageProveedor
+    @accion CHAR(1), -- 'A' para alta, 'M' para modificación, 'B' para baja
+    @id_proveedor INT = NULL,
+    @nombre VARCHAR(50) = NULL OUTPUT,
+    @direccion VARCHAR(150) = NULL OUTPUT,
+    @telefono VARCHAR(15) = NULL OUTPUT,
+    @correo_electronico VARCHAR(100) = NULL OUTPUT,
+    @linea_credito NUMERIC(12) = NULL OUTPUT
+AS
+BEGIN
+    BEGIN TRY
+        IF @accion = 'A'
+        BEGIN
+            INSERT INTO Proveedores (id_proveedor, nombre, direccion, telefono, correo_electronico, linea_credito)
+            VALUES (@id_proveedor, @nombre, @direccion, @telefono, @correo_electronico, @linea_credito);
+        END
+        ELSE IF @accion = 'M'
+        BEGIN
+            UPDATE Proveedores
+            SET nombre = ISNULL(@nombre, nombre),
+                direccion = ISNULL(@direccion, direccion),
+                telefono = ISNULL(@telefono, telefono),
+                correo_electronico = ISNULL(@correo_electronico, correo_electronico),
+                linea_credito = ISNULL(@linea_credito, linea_credito)
+            WHERE id_proveedor = @id_proveedor;
+        END
+        ELSE IF @accion = 'B'
+        BEGIN
+            DELETE FROM Proveedores
+            WHERE id_proveedor = @id_proveedor;
+        END
+        ELSE
+        BEGIN
+            THROW 50007, 'Acción no válida. Use ''A'', ''M'' o ''B''.', 1;
+        END
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000);
+        DECLARE @ErrorSeverity INT;
+        DECLARE @ErrorState INT;
+
+        SELECT 
+            @ErrorMessage = ERROR_MESSAGE(),
+            @ErrorSeverity = ERROR_SEVERITY(),
+            @ErrorState = ERROR_STATE();
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
+END;
+GO
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 -- Ejemplos de ejecución
 
 EXEC sp_ManageProveedor 
