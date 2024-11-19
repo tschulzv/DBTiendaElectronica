@@ -9,13 +9,14 @@ CREATE PROCEDURE sp_ManageProveedor
     @direccion VARCHAR(150) = NULL OUTPUT,
     @telefono VARCHAR(15) = NULL OUTPUT,
     @correo_electronico VARCHAR(100) = NULL OUTPUT,
-    @linea_credito NUMERIC(12) = NULL OUTPUT
+    @linea_credito NUMERIC(12) = NULL OUTPUT,
+    @saldo NUMERIC(12) = NULL OUTPUT
 AS
 BEGIN
     IF @accion = 'A'
     BEGIN
-        INSERT INTO Proveedores (id_proveedor, nombre, direccion, telefono, correo_electronico, linea_credito)
-        VALUES (@id_proveedor, @nombre, @direccion, @telefono, @correo_electronico, @linea_credito);
+        INSERT INTO Proveedores (id_proveedor, nombre, direccion, telefono, correo_electronico, linea_credito, saldo)
+        VALUES (@id_proveedor, @nombre, @direccion, @telefono, @correo_electronico, @linea_credito, @saldo);
     END
     ELSE IF @accion = 'M'
     BEGIN
@@ -24,7 +25,8 @@ BEGIN
             direccion = ISNULL(@direccion, direccion),
             telefono = ISNULL(@telefono, telefono),
             correo_electronico = ISNULL(@correo_electronico, correo_electronico),
-            linea_credito = ISNULL(@linea_credito, linea_credito)
+            linea_credito = ISNULL(@linea_credito, linea_credito),
+	    saldo = ISNULL(@saldo, saldo)
         WHERE id_proveedor = @id_proveedor;
     END
     ELSE IF @accion = 'B'
@@ -43,14 +45,15 @@ CREATE PROCEDURE sp_ManageProveedor
     @direccion VARCHAR(150) = NULL OUTPUT,
     @telefono VARCHAR(15) = NULL OUTPUT,
     @correo_electronico VARCHAR(100) = NULL OUTPUT,
-    @linea_credito NUMERIC(12) = NULL OUTPUT
+    @linea_credito NUMERIC(12) = NULL OUTPUT,
+    @saldo NUMERIC(12) = NULL OUTPUT
 AS
 BEGIN
     BEGIN TRY
         IF @accion = 'A'
         BEGIN
-            INSERT INTO Proveedores (id_proveedor, nombre, direccion, telefono, correo_electronico, linea_credito)
-            VALUES (@id_proveedor, @nombre, @direccion, @telefono, @correo_electronico, @linea_credito);
+            INSERT INTO Proveedores (id_proveedor, nombre, direccion, telefono, correo_electronico, linea_credito, saldo)
+            VALUES (@id_proveedor, @nombre, @direccion, @telefono, @correo_electronico, @linea_credito, @saldo);
         END
         ELSE IF @accion = 'M'
         BEGIN
@@ -59,7 +62,8 @@ BEGIN
                 direccion = ISNULL(@direccion, direccion),
                 telefono = ISNULL(@telefono, telefono),
                 correo_electronico = ISNULL(@correo_electronico, correo_electronico),
-                linea_credito = ISNULL(@linea_credito, linea_credito)
+                linea_credito = ISNULL(@linea_credito, linea_credito),
+		saldo = ISNULL(@saldo, saldo)
             WHERE id_proveedor = @id_proveedor;
         END
         ELSE IF @accion = 'B'
