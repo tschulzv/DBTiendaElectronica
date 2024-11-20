@@ -623,178 +623,173 @@ END;
  
 GO
 --UPDATE
--- falta arreglar ----------------------------------------------------
-CREATE TRIGGER tua_detalle_compras
+CREATE TRIGGER tau_Detalle_Compras
 ON Detalle_Compras
 AFTER UPDATE
 AS
 BEGIN
+    SET NOCOUNT ON;
+
     DECLARE @id_compra INT;
     DECLARE @id_proveedor INT;
-    DECLARE @id_producto INT;
-    DECLARE @id_producto_antiguo INT;
-    DECLARE @cantidad_antigua NUMERIC(6);
-    DECLARE @cantidad_nueva NUMERIC(6);
-    DECLARE @costo_unitario NUMERIC(9);
+    DECLARE @new_cantidad NUMERIC(6);
+    DECLARE @old_cantidad NUMERIC(6);
     DECLARE @id_deposito INT;
-    DECLARE @nuevo_total NUMERIC(12, 2);
+    DECLARE @stock_disponible NUMERIC(6);
+    DECLARE @old_id_producto INT;
+    DECLARE @new_id_producto INT;
+	DECLARE @old_costo_unitario NUMERIC(9);
+	DECLARE @new_costo_unitario NUMERIC(9);
+	DECLARE @ultimo_costo NUMERIC(9);
 
-    -- Obtener valores del registro actualizado
-    SELECT 
-        @id_compra = i.id_compra,
-        @id_proveedor = c.id_proveedor,
-        @id_producto = i.id_producto,
-        @cantidad_nueva = i.cantidad,
-        @costo_unitario = i.costo_unitario,
-        @cantidad_antigua = d.cantidad,
-        @id_producto_antiguo = d.id_producto
-    FROM inserted i
-    JOIN deleted d ON i.id_detalle = d.id_detalle
-    JOIN Compras c ON i.id_compra = c.id_compra;
+        -- Obtener valores de las filas actualizadas
+		SET @old_id_producto = (select id_producto from deleted);
+		SET	@old_costo_unitario = (select costo_unitario from deleted);
+		SET @old_cantidad = (select cantidad from deleted);
+		SET @id_compra = (select id_compra from inserted);
+        SET @new_id_producto = (select id_producto from inserted);
+		SET @new_cantidad = (select cantidad from inserted);
+		SET	@new_costo_unitario = (select costo_unitario from inserted);
+			
+        SELECT @ultimo_costo = p.ultimo_costo_unitario
+		FROM Productos p
+		WHERE id_producto = @new_id_producto;
 
-    -- Obtener id_deposito desde Compras
-    SELECT @id_deposito = c.id_deposito
-    FROM Compras c
-    WHERE c.id_compra = @id_compra;
-
-    -- Calcular el nuevo total de la compra
-    SELECT @nuevo_total = SUM(cantidad * costo_unitario)
-    FROM Detalle_Compras
-    WHERE id_compra = @id_compra;
-
-    -- Verificar que el nuevo saldo no supere la línea de crédito
-    IF EXISTS (
-        SELECT 1
-        FROM Proveedores p
-        WHERE p.id_proveedor = @id_proveedor
-        AND (p.saldo - (@cantidad_antigua * @costo_unitario) + @nuevo_total) > p.linea_credito
-    )
-    BEGIN
-        ROLLBACK TRANSACTION;
-        RAISERROR ('El saldo no puede superar la línea de crédito asignada al proveedor', 16, 1);
-        RETURN;
-    END;
-	-- Verificar que la cantidad no sea negativa 
-	IF EXISTS ( 
-		SELECT 1 
-		FROM Stock s 
-		WHERE s.id_producto = @id_producto 
-		AND s.id_deposito = @id_deposito 
-		AND (s.cantidad - @cantidad_antigua + @cantidad_nueva) < 0 
-	) 
-	BEGIN	
-		THROW 50002, 'La cantidad no puede ser negativa', 1; END
-
-    -- Actualizar el total de la compra en la tabla Compras
-    UPDATE Compras
-    SET total_compra = @nuevo_total
-    WHERE id_compra = @id_compra;
-
-    -- Ajustar el saldo de la compra y del proveedor
-    UPDATE Compras
-    SET saldo_compra = saldo_compra - (@cantidad_antigua * @costo_unitario) + @nuevo_total
-    WHERE id_compra = @id_compra;
-
-    UPDATE Proveedores
-    SET saldo = saldo - (@cantidad_antigua * @costo_unitario) + @nuevo_total
-    WHERE id_proveedor = @id_proveedor;
-
-    -- Actualizar el stock del producto en la tabla Stock
-    IF @id_producto = @id_producto_antiguo
-    BEGIN
-        UPDATE Stock
-        SET cantidad = cantidad - @cantidad_antigua + @cantidad_nueva,
-            ultima_actualizacion = GETDATE()
-        WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
-    END
-    ELSE
-    BEGIN
-        -- Restar el stock del producto antiguo
-        UPDATE Stock
-        SET cantidad = cantidad + @cantidad_antigua,
-            ultima_actualizacion = GETDATE()
-        WHERE id_producto = @id_producto_antiguo AND id_deposito = @id_deposito;
-
-        -- Sumar el stock del producto nuevo
-        UPDATE Stock
-        SET cantidad = cantidad - @cantidad_nueva,
-            ultima_actualizacion = GETDATE()
-        WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
-    END
-END;
-GO
-
-CREATE TRIGGER tda_Detalle_Compras
-ON Detalle_Compras
-AFTER DELETE
-AS
-BEGIN
-
-	DECLARE @id_compra INT;
-    DECLARE @id_proveedor INT;
-    DECLARE @id_producto INT;
-    DECLARE @cantidad NUMERIC(6);
-    DECLARE @costo_unitario NUMERIC(9);
-    DECLARE @id_deposito INT;
-    DECLARE @subtotal NUMERIC(12, 2);
-	DECLARE @ult_costo_unitario NUMERIC(9);
-
-	-- Obtener valores del registro borrado
-     SELECT 
-        @id_compra = d.id_compra,
-        @id_proveedor = c.id_proveedor,
-		@id_deposito = c.id_deposito,
-        @id_producto = d.id_producto,
-        @cantidad = d.cantidad,
-        @costo_unitario = d.costo_unitario
-    FROM deleted d
-    JOIN Compras c ON d.id_compra = c.id_compra;
-
-	-- obtener el subtotal
-	SET @subtotal = @cantidad * @costo_unitario;
-
-	-- descontar el total de la cabecera
-	BEGIN TRY 
-		UPDATE Compras
-		SET total_compra = total_compra - @subtotal
-		WHERE id_compra = @id_compra
-	END TRY
-	BEGIN CATCH 
-		ROLLBACK TRANSACTION;
-		THROW 50003, 'No se pudo actualizar el monto', 1;
-	END CATCH
-	
-	-- disminuir el stock del deposito
-	BEGIN TRY
-		UPDATE Stock
-		SET cantidad = cantidad - @cantidad,
-			ultima_actualizacion = CAST(GETDATE() AS DATE)
-		WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
-	END TRY
-	BEGIN CATCH 
-		ROLLBACK TRANSACTION;
-		THROW 50002, 'No se pudo actualizar el stock', 2;
-	END CATCH
-
-	-- descontar el saldo del proveedor 
-	BEGIN TRY
-		UPDATE Compras
-		SET saldo_compra = saldo_compra - @subtotal
+		SELECT @id_proveedor = c.id_proveedor,
+				@id_deposito = c.id_deposito
+		FROM Compras c
 		WHERE id_compra = @id_compra;
-	END TRY
-	BEGIN CATCH 
-		ROLLBACK TRANSACTION;
-		THROW 50004, 'No se pudo actualizar el saldo', 2;
-	END CATCH
 
-	-- descontar el saldo de la compra
-	BEGIN TRY
-		UPDATE Proveedores
-		SET saldo = saldo - @subtotal
-		WHERE id_proveedor = @id_proveedor;
-	END TRY
-	BEGIN CATCH 
-		ROLLBACK TRANSACTION;
-		THROW 50004, 'No se pudo actualizar el saldo', 2;
-	END CATCH
-END;
+        -- Caso 1: Si se actualiza el id_producto
+        IF UPDATE(id_producto)
+        BEGIN
+            -- Reducir el stock del producto antiguo
+            BEGIN TRY
+                UPDATE Stock
+                SET cantidad = cantidad - @old_cantidad,
+                    ultima_actualizacion = GETDATE()
+                WHERE id_producto = @old_id_producto
+                  AND id_deposito = @id_deposito
+            END TRY
+            BEGIN CATCH
+                ROLLBACK TRANSACTION;
+                THROW 50002, 'Error al reducir el stock del producto antiguo', 2;
+            END CATCH;
+
+            -- Incrementar el stock del nuevo producto
+            BEGIN TRY
+                UPDATE Stock
+                SET cantidad = cantidad + @new_cantidad,
+                    ultima_actualizacion = GETDATE()
+                WHERE id_producto = @new_id_producto
+                  AND id_deposito = @id_deposito;
+            END TRY
+            BEGIN CATCH
+                ROLLBACK TRANSACTION;
+                THROW 50003, 'Error al incrementar el stock del nuevo producto', 3;
+            END CATCH;
+
+			IF @new_costo_unitario <> @ultimo_costo
+			BEGIN 
+				BEGIN TRY
+					UPDATE Productos
+					SET ultimo_costo_unitario = @new_costo_unitario
+					WHERE id_producto = @new_id_producto;
+				END TRY
+				BEGIN CATCH 
+					ROLLBACK TRANSACTION;
+					THROW 50005, 'No se pudo actualizar el producto', 2;
+				END CATCH
+			END
+        END
+
+        -- Caso 2: Si se actualiza la cantidad del mismo producto
+        IF UPDATE(cantidad) AND @old_id_producto = @new_id_producto
+        BEGIN
+            -- Incrementar el stock con la nueva cantidad
+            BEGIN TRY
+                UPDATE Stock
+                SET cantidad = cantidad + (@new_cantidad - @old_cantidad),
+                    ultima_actualizacion = GETDATE()
+                WHERE id_producto = @new_id_producto
+                  AND id_deposito = @id_deposito
+            END TRY
+            BEGIN CATCH
+                ROLLBACK TRANSACTION;
+                THROW 50004, 'Error al actualizar el stock del producto', 4;
+            END CATCH;
+			BEGIN TRY
+				UPDATE Compras
+				SET total_compra = total_compra - (@old_cantidad * @new_costo_unitario) + (@new_cantidad * @new_costo_unitario)
+				where id_compra = @id_compra;
+            END TRY
+            BEGIN CATCH
+				ROLLBACK TRANSACTION;
+				THROW 50003, 'No se pudo actualizar el monto', 1;
+			END CATCH;
+			BEGIN TRY
+				UPDATE Compras
+				SET saldo_compra = saldo_compra - (@old_cantidad * @new_costo_unitario) + (@new_cantidad * @new_costo_unitario)
+				where id_compra = @id_compra;
+            END TRY
+            BEGIN CATCH
+				ROLLBACK TRANSACTION;
+				THROW 50004, 'No se pudo actualizar el saldo', 1;
+			END CATCH;
+			BEGIN TRY
+				UPDATE Proveedores
+				SET saldo = saldo - (@old_cantidad * @new_costo_unitario) + (@new_cantidad * @new_costo_unitario)
+				where id_proveedor = @id_proveedor;
+            END TRY
+            BEGIN CATCH
+				ROLLBACK TRANSACTION;
+				THROW 50004, 'No se pudo actualizar el saldo', 1;
+			END CATCH;
+        END
+
+		-- Caso 3: Si se actuaiza el costo
+		IF UPDATE(costo_unitario)
+			BEGIN TRY
+				UPDATE Compras
+				SET total_compra = total_compra - (@new_cantidad * @old_costo_unitario) + (@new_cantidad * @new_costo_unitario)
+				where id_compra = @id_compra;
+            END TRY
+            BEGIN CATCH
+				ROLLBACK TRANSACTION;
+				THROW 50003, 'No se pudo actualizar el monto', 1;
+			END CATCH;
+			BEGIN TRY
+				UPDATE Compras
+				SET saldo_compra = saldo_compra - (@new_cantidad * @old_costo_unitario) + (@new_cantidad * @new_costo_unitario)
+				where id_compra = @id_compra;
+            END TRY
+            BEGIN CATCH
+				ROLLBACK TRANSACTION;
+				THROW 50004, 'No se pudo actualizar el saldo', 1;
+			END CATCH;
+			BEGIN TRY
+				UPDATE Proveedores
+				SET saldo = saldo - (@new_cantidad * @old_costo_unitario) + (@new_cantidad * @new_costo_unitario)
+				where id_proveedor = @id_proveedor;
+            END TRY
+            BEGIN CATCH
+				ROLLBACK TRANSACTION;
+				THROW 50004, 'No se pudo actualizar el saldo', 1;
+			END CATCH;
+
+			
+			IF @new_costo_unitario <> @ultimo_costo
+			BEGIN 
+				BEGIN TRY
+					UPDATE Productos
+					SET ultimo_costo_unitario = @new_costo_unitario
+					WHERE id_producto = @new_id_producto;
+				END TRY
+				BEGIN CATCH 
+					ROLLBACK TRANSACTION;
+					THROW 50005, 'No se pudo actualizar el producto', 2;
+				END CATCH
+			END
+
+	END;
+	GO
