@@ -793,3 +793,80 @@ BEGIN
 
 	END;
 	GO
+
+
+-- DELETE
+CREATE TRIGGER tda_Detalle_Compras
+ON Detalle_Compras
+AFTER DELETE
+AS
+BEGIN
+
+	DECLARE @id_compra INT;
+    DECLARE @id_proveedor INT;
+    DECLARE @id_producto INT;
+    DECLARE @cantidad NUMERIC(6);
+    DECLARE @costo_unitario NUMERIC(9);
+    DECLARE @id_deposito INT;
+    DECLARE @subtotal NUMERIC(12, 2);
+	DECLARE @ult_costo_unitario NUMERIC(9);
+
+	-- Obtener valores del registro borrado
+     SELECT 
+        @id_compra = d.id_compra,
+        @id_proveedor = c.id_proveedor,
+		@id_deposito = c.id_deposito,
+        @id_producto = d.id_producto,
+        @cantidad = d.cantidad,
+        @costo_unitario = d.costo_unitario
+    FROM deleted d
+    JOIN Compras c ON d.id_compra = c.id_compra;
+
+	-- obtener el subtotal
+	SET @subtotal = @cantidad * @costo_unitario;
+
+	-- descontar el total de la cabecera
+	BEGIN TRY 
+		UPDATE Compras
+		SET total_compra = total_compra - @subtotal
+		WHERE id_compra = @id_compra
+	END TRY
+	BEGIN CATCH 
+		ROLLBACK TRANSACTION;
+		THROW 50003, 'No se pudo actualizar el monto', 1;
+	END CATCH
+	
+	-- disminuir el stock del deposito
+	BEGIN TRY
+		UPDATE Stock
+		SET cantidad = cantidad - @cantidad,
+			ultima_actualizacion = CAST(GETDATE() AS DATE)
+		WHERE id_producto = @id_producto AND id_deposito = @id_deposito;
+	END TRY
+	BEGIN CATCH 
+		ROLLBACK TRANSACTION;
+		THROW 50002, 'No se pudo actualizar el stock', 2;
+	END CATCH
+
+	-- descontar el saldo del proveedor 
+	BEGIN TRY
+		UPDATE Compras
+		SET saldo_compra = saldo_compra - @subtotal
+		WHERE id_compra = @id_compra;
+	END TRY
+	BEGIN CATCH 
+		ROLLBACK TRANSACTION;
+		THROW 50004, 'No se pudo actualizar el saldo', 2;
+	END CATCH
+
+	-- descontar el saldo de la compra
+	BEGIN TRY
+		UPDATE Proveedores
+		SET saldo = saldo - @subtotal
+		WHERE id_proveedor = @id_proveedor;
+	END TRY
+	BEGIN CATCH 
+		ROLLBACK TRANSACTION;
+		THROW 50004, 'No se pudo actualizar el saldo', 2;
+	END CATCH
+END;
