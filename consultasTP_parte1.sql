@@ -84,12 +84,22 @@ ORDER BY SUM(c.total_compra) DESC;
 
 /*Productos que no se compraron por rango de fecha, desplegar los atributos: código y descripción del producto, precio de compra, 
 ultima fecha de compra. (2) (Resolver con procedimiento almacenado)*/
+
 CREATE PROCEDURE sp_Productos_No_Comprados (
     @FechaInicio DATE,
     @FechaFin DATE
 )
 AS
 BEGIN
+
+    -- Determinamos los productos comprados en el rango
+    WITH ProductosComprados AS (
+        SELECT DISTINCT dc.id_producto
+        FROM Compras c
+        JOIN Detalle_Compras dc ON c.id_compra = dc.id_compra
+        WHERE c.fecha_compra BETWEEN @FechaInicio AND @FechaFin
+    )
+    -- Seleccionamos los productos que no están en el conjunto anterior
     SELECT 
         p.id_producto AS "Código del Producto",
         p.descripcion AS "Descripción del Producto",
@@ -98,13 +108,9 @@ BEGIN
     FROM Productos p
     LEFT JOIN Detalle_Compras dc ON p.id_producto = dc.id_producto
     LEFT JOIN Compras c ON dc.id_compra = c.id_compra
-    WHERE 
-        NOT EXISTS (
-            SELECT 1 FROM Compras c2
-            JOIN Detalle_Compras dc2 ON c2.id_compra = dc2.id_compra
-            WHERE dc2.id_producto = p.id_producto AND c2.fecha_compra BETWEEN @FechaInicio AND @FechaFin
-        )
-    GROUP BY p.id_producto, p.descripcion, p.ultimo_costo_unitario
-END;
+    WHERE p.id_producto NOT IN (SELECT id_producto FROM ProductosComprados)
+    GROUP BY p.id_producto, p.descripcion, p.ultimo_costo_unitario;
 
+END;
+GO
 EXEC sp_Productos_No_Comprados @FechaInicio = '2024-03-30', @FechaFin = '2024-12-31';
