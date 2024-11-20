@@ -434,7 +434,7 @@ DECLARE @id_pago INT;
 	SET @importe_viejo= (SELECT importe_pagado FROM deleted);
 	SET @id_pago = (SELECT id_pago FROM inserted);
 	SET @id_compra_nuevo = (SELECT id_compra FROM inserted);
-	SET @id_compra_viejo = (SELECT id_compra FROM inserted);
+	SET @id_compra_viejo = (SELECT id_compra FROM deleted);
 
 	-- recuperar proveedor e importe actual de la cabecera
 	SELECT @id_proveedor = P.id_proveedor
