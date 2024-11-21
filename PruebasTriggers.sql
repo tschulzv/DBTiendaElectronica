@@ -1,13 +1,42 @@
 USE DBTienda;
+select * from detalle_compras;
+select * from compras;
 
 -- PRUEBAS DE TRIGGERS
--- CREAR UNA NUEVA COMPRA Y UN NUEVO DETALLE
+-----------------------------------------------------------------------
+-- CREAR UNA NUEVA COMPRA 
 INSERT INTO Compras
-VALUES (9, 1, '2024-11-20', 'Crédito', '2024-12-20', 2, 0, 0);
+VALUES (10, 3, '2024-11-20', 'Crédito', '2024-12-20', 2, 0, 0);
 
--- Compra de 2 unidades de Teclado Mecanico
+-- INSERT Nuevo detalle
+-- Compra de 3 unidades de Teclado Mecanico
 INSERT INTO Detalle_Compras
-VALUES (9, 9, 3, 2, 350000, 5);
+VALUES (10, 10, 3, 3, 350000, 5);
+
+-- UPDATE: Actualizar costo unitario
+UPDATE Detalle_Compras
+SET costo_unitario = 360000
+WHERE id_detalle = 10;
+
+--UPDATE: actualizar id_producto
+UPDATE Detalle_Compras
+SET id_producto = 2
+WHERE id_detalle = 10;
+
+select * from compras;
+select * from Proveedores;
+select * from Detalle_Compras;
+select * from stock;
+select * from Productos;
+
+
+-- DELETE: Borrar el detalle
+delete from Detalle_Compras
+where id_detalle = 10;
+
+select * from compras;
+select * from Proveedores;
+select * from stock;
 
 
 -- DETALLES DE PAGOS ------------------------------------------
@@ -89,24 +118,3 @@ SELECT * FROM Transferencias_Productos;
 SELECT * FROM Detalles_Transferencia;
 SELECT * FROM view_stock_productos
 ORDER BY Producto, Deposito;
-
--- DETALLES DE COMPRAS ---------------------------------
-SELECT * FROM Compras;
-SELECT * FROM Detalle_Compras;
-SELECT * FROM Proveedores;
-SELECT * FROM Stock;
-
--- INSERT DETALLE COMPRA
--- Insert fallido (saldo excede linea de credito)
-INSERT INTO Detalle_Compras
-VALUES (10, 9, 1, 11, 4500000, 10);
-
--- Insert exitoso
-INSERT INTO Detalle_Compras
-VALUES (10, 9, 1, 1, 4500000, 10);
-
--- UPDATE
-
--- DELETE 
-DELETE FROM Detalle_Compras
-WHERE id_detalle = 10;
