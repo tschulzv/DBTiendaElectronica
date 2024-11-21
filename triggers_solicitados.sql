@@ -623,177 +623,95 @@ END;
  
 GO
 --UPDATE
+-- solo anda para update costo y update id producto
+
 CREATE TRIGGER tau_Detalle_Compras
 ON Detalle_Compras
 AFTER UPDATE
 AS
 BEGIN
-    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
 
-    DECLARE @id_compra INT;
-    DECLARE @id_proveedor INT;
-    DECLARE @new_cantidad NUMERIC(6);
-    DECLARE @old_cantidad NUMERIC(6);
-    DECLARE @id_deposito INT;
-    DECLARE @stock_disponible NUMERIC(6);
-    DECLARE @old_id_producto INT;
-    DECLARE @new_id_producto INT;
-	DECLARE @old_costo_unitario NUMERIC(9);
-	DECLARE @new_costo_unitario NUMERIC(9);
-	DECLARE @ultimo_costo NUMERIC(9);
+        -- Actualizar la cabecera de la compra: total_compra y saldo_compra
+        UPDATE Compras
+        SET total_compra = (
+            SELECT SUM(cantidad * costo_unitario)
+            FROM Detalle_Compras
+            WHERE Detalle_Compras.id_compra = Compras.id_compra
+        ),
+        saldo_compra = (
+            SELECT SUM(cantidad * costo_unitario)
+            FROM Detalle_Compras
+            WHERE Detalle_Compras.id_compra = Compras.id_compra
+        )
+        FROM Compras
+        INNER JOIN inserted i ON Compras.id_compra = i.id_compra;
 
-        -- Obtener valores de las filas actualizadas
-		SET @old_id_producto = (select id_producto from deleted);
-		SET	@old_costo_unitario = (select costo_unitario from deleted);
-		SET @old_cantidad = (select cantidad from deleted);
-		SET @id_compra = (select id_compra from inserted);
-        SET @new_id_producto = (select id_producto from inserted);
-		SET @new_cantidad = (select cantidad from inserted);
-		SET	@new_costo_unitario = (select costo_unitario from inserted);
-			
-        SELECT @ultimo_costo = p.ultimo_costo_unitario
-		FROM Productos p
-		WHERE id_producto = @new_id_producto;
-
-		SELECT @id_proveedor = c.id_proveedor,
-				@id_deposito = c.id_deposito
-		FROM Compras c
-		WHERE id_compra = @id_compra;
-
-        -- Caso 1: Si se actualiza el id_producto
-        IF UPDATE(id_producto)
+        -- Detectar si el id_producto ha cambiado
+        IF EXISTS (
+            SELECT 1
+            FROM inserted i
+            INNER JOIN deleted d ON i.id_detalle = d.id_detalle
+            WHERE i.id_producto <> d.id_producto
+        )
         BEGIN
-            -- Reducir el stock del producto antiguo
-            BEGIN TRY
-                UPDATE Stock
-                SET cantidad = cantidad - @old_cantidad,
-                    ultima_actualizacion = GETDATE()
-                WHERE id_producto = @old_id_producto
-                  AND id_deposito = @id_deposito
-            END TRY
-            BEGIN CATCH
-                ROLLBACK TRANSACTION;
-                THROW 50002, 'Error al reducir el stock del producto antiguo', 2;
-            END CATCH;
+            -- Caso: Cambio de id_producto
+
+            -- Reducir el stock del producto anterior
+            UPDATE Stock
+            SET Stock.cantidad = Stock.cantidad - d.cantidad
+            FROM Stock
+            INNER JOIN deleted d ON Stock.id_producto = d.id_producto
+            INNER JOIN Compras c ON d.id_compra = c.id_compra
+            WHERE Stock.id_deposito = c.id_deposito;
 
             -- Incrementar el stock del nuevo producto
-            BEGIN TRY
-                UPDATE Stock
-                SET cantidad = cantidad + @new_cantidad,
-                    ultima_actualizacion = GETDATE()
-                WHERE id_producto = @new_id_producto
-                  AND id_deposito = @id_deposito;
-            END TRY
-            BEGIN CATCH
-                ROLLBACK TRANSACTION;
-                THROW 50003, 'Error al incrementar el stock del nuevo producto', 3;
-            END CATCH;
-
-			IF @new_costo_unitario <> @ultimo_costo
-			BEGIN 
-				BEGIN TRY
-					UPDATE Productos
-					SET ultimo_costo_unitario = @new_costo_unitario
-					WHERE id_producto = @new_id_producto;
-				END TRY
-				BEGIN CATCH 
-					ROLLBACK TRANSACTION;
-					THROW 50005, 'No se pudo actualizar el producto', 2;
-				END CATCH
-			END
+            UPDATE Stock
+            SET Stock.cantidad = Stock.cantidad + i.cantidad
+            FROM Stock
+            INNER JOIN inserted i ON Stock.id_producto = i.id_producto
+            INNER JOIN Compras c ON i.id_compra = c.id_compra
+            WHERE Stock.id_deposito = c.id_deposito;
         END
-
-        -- Caso 2: Si se actualiza la cantidad del mismo producto
-        IF UPDATE(cantidad) AND @old_id_producto = @new_id_producto
+        ELSE
         BEGIN
-            -- Incrementar el stock con la nueva cantidad
-            BEGIN TRY
-                UPDATE Stock
-                SET cantidad = cantidad + (@new_cantidad - @old_cantidad),
-                    ultima_actualizacion = GETDATE()
-                WHERE id_producto = @new_id_producto
-                  AND id_deposito = @id_deposito
-            END TRY
-            BEGIN CATCH
-                ROLLBACK TRANSACTION;
-                THROW 50004, 'Error al actualizar el stock del producto', 4;
-            END CATCH;
-			BEGIN TRY
-				UPDATE Compras
-				SET total_compra = total_compra - (@old_cantidad * @new_costo_unitario) + (@new_cantidad * @new_costo_unitario)
-				where id_compra = @id_compra;
-            END TRY
-            BEGIN CATCH
-				ROLLBACK TRANSACTION;
-				THROW 50003, 'No se pudo actualizar el monto', 1;
-			END CATCH;
-			BEGIN TRY
-				UPDATE Compras
-				SET saldo_compra = saldo_compra - (@old_cantidad * @new_costo_unitario) + (@new_cantidad * @new_costo_unitario)
-				where id_compra = @id_compra;
-            END TRY
-            BEGIN CATCH
-				ROLLBACK TRANSACTION;
-				THROW 50004, 'No se pudo actualizar el saldo', 1;
-			END CATCH;
-			BEGIN TRY
-				UPDATE Proveedores
-				SET saldo = saldo - (@old_cantidad * @new_costo_unitario) + (@new_cantidad * @new_costo_unitario)
-				where id_proveedor = @id_proveedor;
-            END TRY
-            BEGIN CATCH
-				ROLLBACK TRANSACTION;
-				THROW 50004, 'No se pudo actualizar el saldo', 1;
-			END CATCH;
-        END
+            -- Caso: No hubo cambio de id_producto, solo se actualiza costo
 
-		-- Caso 3: Si se actuaiza el costo
-		IF UPDATE(costo_unitario)
-			BEGIN TRY
-				UPDATE Compras
-				SET total_compra = total_compra - (@new_cantidad * @old_costo_unitario) + (@new_cantidad * @new_costo_unitario)
-				where id_compra = @id_compra;
-            END TRY
-            BEGIN CATCH
-				ROLLBACK TRANSACTION;
-				THROW 50003, 'No se pudo actualizar el monto', 1;
-			END CATCH;
-			BEGIN TRY
-				UPDATE Compras
-				SET saldo_compra = saldo_compra - (@new_cantidad * @old_costo_unitario) + (@new_cantidad * @new_costo_unitario)
-				where id_compra = @id_compra;
-            END TRY
-            BEGIN CATCH
-				ROLLBACK TRANSACTION;
-				THROW 50004, 'No se pudo actualizar el saldo', 1;
-			END CATCH;
-			BEGIN TRY
-				UPDATE Proveedores
-				SET saldo = saldo - (@new_cantidad * @old_costo_unitario) + (@new_cantidad * @new_costo_unitario)
-				where id_proveedor = @id_proveedor;
-            END TRY
-            BEGIN CATCH
-				ROLLBACK TRANSACTION;
-				THROW 50004, 'No se pudo actualizar el saldo', 1;
-			END CATCH;
+            UPDATE Stock
+            SET Stock.cantidad = Stock.cantidad + (i.cantidad - d.cantidad)
+            FROM Stock
+            INNER JOIN inserted i ON Stock.id_producto = i.id_producto
+            INNER JOIN deleted d ON i.id_detalle = d.id_detalle
+            INNER JOIN Compras c ON i.id_compra = c.id_compra
+            WHERE Stock.id_deposito = c.id_deposito;
+        END;
 
-			
-			IF @new_costo_unitario <> @ultimo_costo
-			BEGIN 
-				BEGIN TRY
-					UPDATE Productos
-					SET ultimo_costo_unitario = @new_costo_unitario
-					WHERE id_producto = @new_id_producto;
-				END TRY
-				BEGIN CATCH 
-					ROLLBACK TRANSACTION;
-					THROW 50005, 'No se pudo actualizar el producto', 2;
-				END CATCH
-			END
+        -- Calcular la diferencia en el saldo del proveedor
+        UPDATE Proveedores
+        SET saldo = saldo + (
+            SELECT SUM((i.cantidad * i.costo_unitario) - (d.cantidad * d.costo_unitario))
+            FROM inserted i
+            INNER JOIN deleted d ON i.id_detalle = d.id_detalle
+            INNER JOIN Compras c ON i.id_compra = c.id_compra
+            WHERE Proveedores.id_proveedor = c.id_proveedor
+        )
+        FROM Proveedores
+        INNER JOIN inserted i ON Proveedores.id_proveedor = (
+            SELECT c.id_proveedor
+            FROM Compras c
+            WHERE c.id_compra = i.id_compra
+        );
 
-	END;
-	GO
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
 
+        THROW 50010, 'Error al actualizar el detalle de la compra y sus dependencias.', 1;
+    END CATCH
+END;
+GO
 
 -- DELETE
 CREATE TRIGGER tda_Detalle_Compras
