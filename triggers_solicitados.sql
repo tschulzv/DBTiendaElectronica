@@ -648,6 +648,13 @@ BEGIN
         FROM Compras
         INNER JOIN inserted i ON Compras.id_compra = i.id_compra;
 
+        -- Actualizar el ultimo_costo_unitario si el costo_unitario ha cambiado
+        UPDATE Productos
+        SET ultimo_costo_unitario = i.costo_unitario
+        FROM Productos p
+        INNER JOIN inserted i ON p.id_producto = i.id_producto
+        WHERE i.costo_unitario <> p.ultimo_costo_unitario;
+
         -- Detectar si el id_producto ha cambiado
         IF EXISTS (
             SELECT 1
@@ -712,7 +719,6 @@ BEGIN
     END CATCH
 END;
 GO
-
 -- DELETE
 CREATE TRIGGER tda_Detalle_Compras
 ON Detalle_Compras
