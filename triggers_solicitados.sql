@@ -508,7 +508,7 @@ DECLARE @id_pago INT;
 
 	
 END;
-
+go
 --Triggers Detalle_Compra
 -- INSERT
 CREATE TRIGGER tia_Detalle_Compras
